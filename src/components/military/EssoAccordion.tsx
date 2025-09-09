@@ -19,7 +19,7 @@ export const EssoAccordion: React.FC<EssoAccordionProps> = ({ onSelectPersonnel 
   // Group personnel by ESSO
   const getPersonnelByEsso = (year: string, letter: string) => {
     const esso = `${year}${letter}`
-    return militaryPersonnel.filter(p => p.esso === esso)
+    return (militaryPersonnel || []).filter(p => p.esso === esso)
   }
 
   // Filter personnel based on search
@@ -78,7 +78,7 @@ export const EssoAccordion: React.FC<EssoAccordionProps> = ({ onSelectPersonnel 
           </div>
           <div className="flex items-center space-x-2 text-sm text-gray-400">
             <Users className="h-4 w-4" />
-            <span>{militaryPersonnel.length} συνολικά</span>
+            <span>{militaryPersonnel?.length || 0} συνολικά</span>
           </div>
         </div>
 

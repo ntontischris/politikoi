@@ -19,12 +19,12 @@ export function CitizenViewModal({ citizen, isOpen, onClose, onEdit }: CitizenVi
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4">
       <div className="absolute inset-0 bg-black opacity-50" onClick={onClose}></div>
       
-      <div className="bg-slate-800 border border-slate-700 rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto relative z-10">
+      <div className="responsive-modal-lg bg-slate-800 border border-slate-700 rounded-xl max-h-screen-90 overflow-y-auto relative z-10">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-slate-700">
+        <div className="flex items-center justify-between responsive-padding border-b border-slate-700">
           <div className="flex items-center">
             <User className="h-6 w-6 text-blue-400 mr-3" />
             <div>
@@ -39,14 +39,14 @@ export function CitizenViewModal({ citizen, isOpen, onClose, onEdit }: CitizenVi
           <div className="flex items-center space-x-2">
             <button
               onClick={handleEdit}
-              className="text-blue-400 hover:text-blue-300 p-2 hover:bg-slate-700 rounded-lg transition-colors"
+              className="text-blue-400 hover:text-blue-300 touch-target hover:bg-slate-700 rounded-lg transition-colors"
               title="Επεξεργασία"
             >
               <Edit className="h-5 w-5" />
             </button>
             <button
               onClick={onClose}
-              className="text-gray-400 hover:text-white p-2 hover:bg-slate-700 rounded-lg transition-colors"
+              className="text-gray-400 hover:text-white touch-target hover:bg-slate-700 rounded-lg transition-colors"
             >
               <X className="h-5 w-5" />
             </button>
@@ -54,7 +54,7 @@ export function CitizenViewModal({ citizen, isOpen, onClose, onEdit }: CitizenVi
         </div>
 
         {/* Content */}
-        <div className="p-6 space-y-6">
+        <div className="responsive-padding space-y-4 sm:space-y-6">
           
           {/* Status Badge */}
           <div className="flex items-center">
@@ -106,9 +106,15 @@ export function CitizenViewModal({ citizen, isOpen, onClose, onEdit }: CitizenVi
             <div className="bg-slate-700/30 rounded-lg p-4 space-y-3">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <p className="text-gray-400 text-sm">Τηλέφωνο</p>
+                  <p className="text-gray-400 text-sm">Κινητό Τηλέφωνο</p>
                   <p className="text-white font-medium">
                     {citizen.phone || <span className="text-gray-500">Δεν έχει καταχωρηθεί</span>}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-gray-400 text-sm">Σταθερό Τηλέφωνο</p>
+                  <p className="text-white font-medium">
+                    {citizen.landline || <span className="text-gray-500">Δεν έχει καταχωρηθεί</span>}
                   </p>
                 </div>
                 <div>
@@ -225,16 +231,16 @@ export function CitizenViewModal({ citizen, isOpen, onClose, onEdit }: CitizenVi
         </div>
 
         {/* Footer */}
-        <div className="flex justify-end space-x-4 p-6 border-t border-slate-700">
+        <div className="flex flex-col sm:flex-row justify-end space-y-2 sm:space-y-0 sm:space-x-4 responsive-padding border-t border-slate-700">
           <button
             onClick={onClose}
-            className="px-6 py-3 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors"
+            className="px-6 py-3 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors touch-target"
           >
             Κλείσιμο
           </button>
           <button
             onClick={handleEdit}
-            className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg flex items-center transition-colors"
+            className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg flex items-center justify-center transition-colors touch-target"
           >
             <Edit className="h-4 w-4 mr-2" />
             Επεξεργασία

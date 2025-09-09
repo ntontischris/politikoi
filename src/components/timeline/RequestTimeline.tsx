@@ -140,11 +140,11 @@ export const RequestTimeline: React.FC<RequestTimelineProps> = ({
   }
 
   return (
-    <div className="bg-slate-800/50 backdrop-blur-lg border border-slate-700 rounded-lg p-6">
+    <div className="bg-slate-800/50 backdrop-blur-lg border border-slate-700 rounded-lg responsive-padding">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 space-y-3 sm:space-y-0">
         <div>
-          <h3 className="text-lg font-semibold text-white flex items-center">
+          <h3 className="text-base sm:text-lg font-semibold text-white flex items-center">
             <FileText className="w-5 h-5 mr-2 text-blue-400" />
             Ιστορικό Αιτημάτων
           </h3>
@@ -155,7 +155,7 @@ export const RequestTimeline: React.FC<RequestTimelineProps> = ({
         {showAddButton && (
           <button
             onClick={() => setShowForm(true)}
-            className="flex items-center space-x-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+            className="flex items-center justify-center space-x-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors touch-target w-full sm:w-auto"
           >
             <Plus className="w-4 h-4" />
             <span>Νέο Αίτημα</span>
@@ -165,22 +165,22 @@ export const RequestTimeline: React.FC<RequestTimelineProps> = ({
 
       {/* Statistics */}
       {citizenRequests.length > 0 && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-          <div className="p-3 bg-slate-700/30 border border-slate-600 rounded-lg">
-            <div className="text-lg font-semibold text-white">{stats.total}</div>
-            <div className="text-sm text-slate-400">Σύνολο</div>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6">
+          <div className="responsive-padding bg-slate-700/30 border border-slate-600 rounded-lg">
+            <div className="text-base sm:text-lg font-semibold text-white">{stats.total}</div>
+            <div className="text-xs sm:text-sm text-slate-400">Σύνολο</div>
           </div>
-          <div className="p-3 bg-slate-700/30 border border-slate-600 rounded-lg">
-            <div className="text-lg font-semibold text-emerald-400">{stats.completed}</div>
-            <div className="text-sm text-slate-400">Ολοκληρωμένα</div>
+          <div className="responsive-padding bg-slate-700/30 border border-slate-600 rounded-lg">
+            <div className="text-base sm:text-lg font-semibold text-emerald-400">{stats.completed}</div>
+            <div className="text-xs sm:text-sm text-slate-400">Ολοκληρωμένα</div>
           </div>
-          <div className="p-3 bg-slate-700/30 border border-slate-600 rounded-lg">
-            <div className="text-lg font-semibold text-yellow-400">{stats.inProgress}</div>
-            <div className="text-sm text-slate-400">Σε Εξέλιξη</div>
+          <div className="responsive-padding bg-slate-700/30 border border-slate-600 rounded-lg">
+            <div className="text-base sm:text-lg font-semibold text-yellow-400">{stats.inProgress}</div>
+            <div className="text-xs sm:text-sm text-slate-400">Σε Εξέλιξη</div>
           </div>
-          <div className="p-3 bg-slate-700/30 border border-slate-600 rounded-lg">
-            <div className="text-lg font-semibold text-blue-400">{stats.pending}</div>
-            <div className="text-sm text-slate-400">Εκκρεμή</div>
+          <div className="responsive-padding bg-slate-700/30 border border-slate-600 rounded-lg">
+            <div className="text-base sm:text-lg font-semibold text-blue-400">{stats.pending}</div>
+            <div className="text-xs sm:text-sm text-slate-400">Εκκρεμή</div>
           </div>
         </div>
       )}
@@ -193,7 +193,7 @@ export const RequestTimeline: React.FC<RequestTimelineProps> = ({
           {showAddButton && (
             <button
               onClick={() => setShowForm(true)}
-              className="text-blue-400 hover:text-blue-300 underline"
+              className="text-blue-400 hover:text-blue-300 underline touch-target"
             >
               Προσθέστε το πρώτο αίτημα
             </button>
@@ -212,18 +212,18 @@ export const RequestTimeline: React.FC<RequestTimelineProps> = ({
                   <div className="absolute left-6 top-16 w-0.5 h-full bg-slate-700 -z-10" />
                 )}
 
-                <div className="flex items-start space-x-4 group">
+                <div className="flex items-start space-x-3 sm:space-x-4 group">
                   {/* Timeline dot */}
-                  <div className="flex-shrink-0 w-12 h-12 bg-slate-700 border-2 border-slate-600 rounded-full flex items-center justify-center">
-                    <StatusIcon className={`w-5 h-5 ${statusColors[request.status]}`} />
+                  <div className="flex-shrink-0 w-10 sm:w-12 h-10 sm:h-12 bg-slate-700 border-2 border-slate-600 rounded-full flex items-center justify-center">
+                    <StatusIcon className={`w-4 sm:w-5 h-4 sm:h-5 ${statusColors[request.status]}`} />
                   </div>
 
                   {/* Content */}
-                  <div className="flex-1 bg-slate-700/30 hover:bg-slate-700/50 border border-slate-600 rounded-lg p-4 transition-colors">
+                  <div className="flex-1 bg-slate-700/30 hover:bg-slate-700/50 border border-slate-600 rounded-lg responsive-padding transition-colors">
                     {/* Header */}
-                    <div className="flex items-start justify-between mb-3">
+                    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between mb-3 space-y-2 sm:space-y-0">
                       <div className="flex-1">
-                        <div className="flex items-center space-x-3 mb-2">
+                        <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-2">
                           <h4 className="font-medium text-white cursor-pointer hover:text-blue-400 transition-colors"
                               onClick={() => handleView(request)}>
                             {request.title}
@@ -236,7 +236,7 @@ export const RequestTimeline: React.FC<RequestTimelineProps> = ({
                           </span>
                         </div>
                         
-                        <div className="flex items-center space-x-4 text-sm text-slate-400 mb-3">
+                        <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-xs sm:text-sm text-slate-400 mb-3">
                           <span>{request.category}</span>
                           <span>•</span>
                           <span>{formatDate(request.submissionDate)}</span>
@@ -262,24 +262,24 @@ export const RequestTimeline: React.FC<RequestTimelineProps> = ({
                       </div>
 
                       {/* Actions */}
-                      <div className="flex items-center space-x-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="flex items-center space-x-1 sm:space-x-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                         <button
                           onClick={() => handleView(request)}
-                          className="p-2 text-slate-400 hover:text-blue-400 hover:bg-slate-600 rounded-lg transition-colors"
+                          className="touch-target text-slate-400 hover:text-blue-400 hover:bg-slate-600 rounded-lg transition-colors"
                           title="Προβολή"
                         >
                           <FileText className="w-4 h-4" />
                         </button>
                         <button
                           onClick={() => handleEdit(request)}
-                          className="p-2 text-slate-400 hover:text-blue-400 hover:bg-slate-600 rounded-lg transition-colors"
+                          className="touch-target text-slate-400 hover:text-blue-400 hover:bg-slate-600 rounded-lg transition-colors"
                           title="Επεξεργασία"
                         >
                           <Edit className="w-4 h-4" />
                         </button>
                         <button
                           onClick={() => handleDelete(request)}
-                          className="p-2 text-slate-400 hover:text-red-400 hover:bg-slate-600 rounded-lg transition-colors"
+                          className="touch-target text-slate-400 hover:text-red-400 hover:bg-slate-600 rounded-lg transition-colors"
                           title="Διαγραφή"
                         >
                           <Trash2 className="w-4 h-4" />
@@ -298,8 +298,8 @@ export const RequestTimeline: React.FC<RequestTimelineProps> = ({
                     )}
 
                     {/* Footer Info */}
-                    <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-600">
-                      <div className="flex items-center space-x-4 text-xs text-slate-400">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mt-3 pt-3 border-t border-slate-600 space-y-1 sm:space-y-0">
+                      <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-xs text-slate-400">
                         <span>Τμήμα: {request.department}</span>
                         {request.assignedTo && <span>Ανατέθηκε: {request.assignedTo}</span>}
                       </div>

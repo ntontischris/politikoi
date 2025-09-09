@@ -67,12 +67,12 @@ export function MilitaryViewModal({ militaryPersonnel, isOpen, onClose, onEdit }
   const StatusIcon = getStatusIcon(militaryPersonnel.status)
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4">
       <div className="absolute inset-0 bg-black opacity-50" onClick={onClose}></div>
       
-      <div className="bg-slate-800 border border-slate-700 rounded-xl w-full max-w-3xl max-h-[90vh] overflow-y-auto relative z-10">
+      <div className="responsive-modal-lg bg-slate-800 border border-slate-700 rounded-xl max-h-screen-90 overflow-y-auto relative z-10">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-slate-700">
+        <div className="flex items-center justify-between responsive-padding border-b border-slate-700">
           <div className="flex items-center">
             <Shield className="h-6 w-6 text-blue-400 mr-3" />
             <div>
@@ -86,17 +86,17 @@ export function MilitaryViewModal({ militaryPersonnel, isOpen, onClose, onEdit }
           </div>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-white p-2 hover:bg-slate-700 rounded-lg transition-colors"
+            className="text-gray-400 hover:text-white touch-target hover:bg-slate-700 rounded-lg transition-colors"
           >
             <X className="h-5 w-5" />
           </button>
         </div>
 
         {/* Content */}
-        <div className="p-6 space-y-6">
+        <div className="responsive-padding space-y-4 sm:space-y-6">
           
           {/* Status Badge */}
-          <div className="flex items-center space-x-4">
+          <div className="flex items-center flex-wrap gap-2 sm:gap-4">
             <span className={`px-4 py-2 rounded-full text-sm font-medium border flex items-center ${getStatusColor(militaryPersonnel.status)}`}>
               <StatusIcon className="h-4 w-4 mr-2" />
               {getStatusText(militaryPersonnel.status)}
@@ -256,10 +256,10 @@ export function MilitaryViewModal({ militaryPersonnel, isOpen, onClose, onEdit }
         </div>
 
         {/* Footer */}
-        <div className="flex justify-center p-6 border-t border-slate-700">
+        <div className="flex justify-center responsive-padding border-t border-slate-700">
           <button
             onClick={onClose}
-            className="px-6 py-3 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors"
+            className="px-6 py-3 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors touch-target w-full sm:w-auto"
           >
             Κλείσιμο
           </button>

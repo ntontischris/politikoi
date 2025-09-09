@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState, useEffect } from 'react'
 import {
   LineChart,
   Line,
@@ -32,6 +32,7 @@ interface StatisticsChartProps {
   data: MonthlyData[] | StatusData[]
   title: string
   height?: number
+  mobileHeight?: number
 }
 
 const COLORS = {
@@ -63,22 +64,43 @@ export const StatisticsChart: React.FC<StatisticsChartProps> = ({
   type, 
   data, 
   title,
-  height = 300
+  height = 300,
+  mobileHeight = 250
 }) => {
+  const [isMobile, setIsMobile] = useState(false)
+
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768)
+    }
+    
+    checkMobile()
+    window.addEventListener('resize', checkMobile)
+    return () => window.removeEventListener('resize', checkMobile)
+  }, [])
+
+  const getResponsiveHeight = () => {
+    return isMobile ? mobileHeight : height
+  }
+
   const renderLineChart = () => (
-    <ResponsiveContainer width="100%" height={height}>
+    <ResponsiveContainer width="100%" height={getResponsiveHeight()}>
       <LineChart data={data as MonthlyData[]}>
         <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
         <XAxis 
           dataKey="month" 
           axisLine={false}
           tickLine={false}
-          tick={{ fill: '#9CA3AF', fontSize: 12 }}
+          tick={{ fill: '#9CA3AF', fontSize: isMobile ? 10 : 12 }}
+          interval={isMobile ? 1 : 0}
+          angle={isMobile ? -45 : 0}
+          textAnchor={isMobile ? 'end' : 'middle'}
+          height={isMobile ? 60 : 30}
         />
         <YAxis 
           axisLine={false}
           tickLine={false}
-          tick={{ fill: '#9CA3AF', fontSize: 12 }}
+          tick={{ fill: '#9CA3AF', fontSize: isMobile ? 10 : 12 }}
         />
         <Tooltip content={<CustomTooltip />} />
         <Line 
@@ -110,16 +132,16 @@ export const StatisticsChart: React.FC<StatisticsChartProps> = ({
   )
 
   const renderPieChart = () => (
-    <ResponsiveContainer width="100%" height={height}>
+    <ResponsiveContainer width="100%" height={getResponsiveHeight()}>
       <PieChart>
         <Pie
           data={data as StatusData[]}
           cx="50%"
           cy="50%"
-          innerRadius={60}
-          outerRadius={120}
+          innerRadius={isMobile ? 40 : 60}
+          outerRadius={isMobile ? 80 : 120}
           dataKey="value"
-          label={({ name, percent }) => `${name} ${((percent || 0) * 100).toFixed(0)}%`}
+          label={isMobile ? false : ({ name, percent }) => `${name} ${((percent || 0) * 100).toFixed(0)}%`}
         >
           {(data as StatusData[]).map((entry, index) => (
             <Cell key={`cell-${index}`} fill={entry.color} />
@@ -131,19 +153,23 @@ export const StatisticsChart: React.FC<StatisticsChartProps> = ({
   )
 
   const renderBarChart = () => (
-    <ResponsiveContainer width="100%" height={height}>
+    <ResponsiveContainer width="100%" height={getResponsiveHeight()}>
       <BarChart data={data as MonthlyData[]}>
         <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
         <XAxis 
           dataKey="month" 
           axisLine={false}
           tickLine={false}
-          tick={{ fill: '#9CA3AF', fontSize: 12 }}
+          tick={{ fill: '#9CA3AF', fontSize: isMobile ? 10 : 12 }}
+          interval={isMobile ? 1 : 0}
+          angle={isMobile ? -45 : 0}
+          textAnchor={isMobile ? 'end' : 'middle'}
+          height={isMobile ? 60 : 30}
         />
         <YAxis 
           axisLine={false}
           tickLine={false}
-          tick={{ fill: '#9CA3AF', fontSize: 12 }}
+          tick={{ fill: '#9CA3AF', fontSize: isMobile ? 10 : 12 }}
         />
         <Tooltip content={<CustomTooltip />} />
         <Bar 
@@ -169,9 +195,9 @@ export const StatisticsChart: React.FC<StatisticsChartProps> = ({
   )
 
   return (
-    <div className="bg-slate-800 border border-slate-700 rounded-xl p-6">
-      <h3 className="text-lg font-semibold text-white mb-4">{title}</h3>
-      <div className="w-full">
+    <div className="bg-slate-800 border border-slate-700 rounded-xl responsive-padding">
+      <h3 className="text-base sm:text-lg font-semibold text-white mb-4">{title}</h3>
+      <div className="w-full overflow-hidden">
         {type === 'line' && renderLineChart()}
         {type === 'pie' && renderPieChart()}
         {type === 'bar' && renderBarChart()}

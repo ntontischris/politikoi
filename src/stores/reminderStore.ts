@@ -1,5 +1,4 @@
-import { create } from 'zustand'
-import { persist } from 'zustand/middleware'
+import { createSmartStore, CacheProfiles } from './baseStore'
 import { reminderService, type Reminder as DBReminder, type ReminderInput, type ReminderWithRequest } from '../services/reminderService'
 
 // Frontend interface that maps to backend data
@@ -7,279 +6,139 @@ export interface Reminder {
   id: string
   title: string
   description?: string
-  reminder_date: string
-  reminder_type: 'ΕΟΡΤΗ' | 'ΑΙΤΗΜΑ' | 'ΓΕΝΙΚΗ'
-  related_request_id?: string
-  is_completed?: boolean
+  reminderDate: string
+  reminderType: 'ΕΟΡΤΗ' | 'ΑΙΤΗΜΑ' | 'ΓΕΝΙΚΗ'
+  relatedRequestId?: string
+  isCompleted: boolean
   created_at: string
+  updated_at?: string
 }
 
-interface ReminderStore {
-  reminders: Reminder[]
-  isLoading: boolean
-  error: string | null
-  
-  // Actions
-  loadReminders: () => Promise<void>
-  addReminder: (reminderData: Omit<Reminder, 'id' | 'created_at'>) => Promise<void>
-  updateReminder: (id: string, reminderData: Partial<Reminder>) => Promise<void>
-  deleteReminder: (id: string) => Promise<void>
-  markAsCompleted: (id: string) => Promise<void>
-  getReminder: (id: string) => Reminder | undefined
-  getTodaysReminders: () => Promise<void>
-  getUpcomingReminders: (days?: number) => Promise<void>
-  getRemindersByType: (type: 'ΕΟΡΤΗ' | 'ΑΙΤΗΜΑ' | 'ΓΕΝΙΚΗ') => Promise<void>
-  searchReminders: (searchTerm: string) => Promise<void>
-  setLoading: (loading: boolean) => void
-  setError: (error: string | null) => void
-  
-  // Computed
-  getStats: () => {
-    total: number
-    completed: number
-    pending: number
-    upcoming: number
-    byType: Record<string, number>
+export interface ReminderWithRequest extends Reminder {
+  request?: {
+    request_type: string
+    description: string
+    status: string
   }
 }
 
-// Helper function to transform database reminder to frontend reminder
-const transformDBReminder = (dbReminder: ReminderWithRequest): Reminder => ({
+// Helper function to transform database reminder to frontend
+const transformDBReminder = (dbReminder: DBReminder): Reminder => ({
   id: dbReminder.id,
   title: dbReminder.title,
   description: dbReminder.description || undefined,
-  reminder_date: dbReminder.reminder_date,
-  reminder_type: dbReminder.reminder_type,
-  related_request_id: dbReminder.related_request_id || undefined,
-  is_completed: dbReminder.is_completed || false,
-  created_at: dbReminder.created_at
+  reminderDate: dbReminder.reminder_date,
+  reminderType: dbReminder.reminder_type || 'ΓΕΝΙΚΗ',
+  relatedRequestId: dbReminder.related_request_id || undefined,
+  isCompleted: dbReminder.is_completed || false,
+  created_at: dbReminder.created_at,
+  updated_at: dbReminder.updated_at
 })
 
-// Helper function to transform frontend reminder to database input
+// Helper function to transform frontend to database input
 const transformToDBInput = (reminder: Partial<Reminder>): Partial<ReminderInput> => ({
   title: reminder.title || '',
-  description: reminder.description || null,
-  reminder_date: reminder.reminder_date || '',
-  reminder_type: reminder.reminder_type || 'ΓΕΝΙΚΗ',
-  related_request_id: reminder.related_request_id || null,
-  is_completed: reminder.is_completed || false
+  description: reminder.description?.trim() || null,
+  reminder_date: reminder.reminderDate || new Date().toISOString(),
+  reminder_type: reminder.reminderType || 'ΓΕΝΙΚΗ',
+  related_request_id: reminder.relatedRequestId || null,
+  is_completed: reminder.isCompleted || false
 })
 
-export const useReminderStore = create<ReminderStore>()(
-  persist(
-    (set, get) => ({
-      reminders: [],
-      isLoading: false,
-      error: null,
+// Service adapter
+const reminderServiceAdapter = {
+  getAll: () => reminderService.getAllReminders(),
+  create: (data: ReminderInput) => reminderService.createReminder(data),
+  update: (id: string, data: Partial<ReminderInput>) => reminderService.updateReminder(id, data),
+  delete: (id: string) => reminderService.deleteReminder(id)
+}
 
-      loadReminders: async () => {
-        set({ isLoading: true, error: null })
-        
-        try {
-          const dbReminders = await reminderService.getAllReminders()
-          const reminders = dbReminders.map(transformDBReminder)
-          set({ reminders, isLoading: false })
-        } catch (error) {
-          set({ 
-            isLoading: false, 
-            error: error instanceof Error ? error.message : 'Σφάλμα κατά τη φόρτωση υπομνημάτων'
-          })
-        }
-      },
+// Create the smart reminder store
+export const useReminderStore = createSmartStore<Reminder, ReminderInput, typeof reminderServiceAdapter>({
+  storeName: 'reminders',
+  cacheConfig: CacheProfiles.MODERATE, // Reminders don't change too frequently
+  service: reminderServiceAdapter,
+  transformFromDB: transformDBReminder,
+  transformToDB: transformToDBInput
+})
 
-      addReminder: async (reminderData) => {
-        set({ isLoading: true, error: null })
-        
-        try {
-          const dbInput = transformToDBInput(reminderData) as ReminderInput
-          const newDBReminder = await reminderService.createReminder(dbInput)
-          
-          // Get the full reminder with relations
-          const fullReminder = await reminderService.getReminderById(newDBReminder.id)
-          if (fullReminder) {
-            const newReminder = transformDBReminder(fullReminder)
-            set(state => ({
-              reminders: [newReminder, ...state.reminders],
-              isLoading: false
-            }))
-          }
-        } catch (error) {
-          set({ 
-            isLoading: false, 
-            error: error instanceof Error ? error.message : 'Σφάλμα κατά την προσθήκη υπενθύμισης'
-          })
-          throw error
-        }
-      },
-
-      updateReminder: async (id, reminderData) => {
-        set({ isLoading: true, error: null })
-        
-        try {
-          const dbInput = transformToDBInput(reminderData)
-          await reminderService.updateReminder(id, dbInput)
-          
-          // Get the updated reminder with relations
-          const updatedDBReminder = await reminderService.getReminderById(id)
-          if (updatedDBReminder) {
-            const updatedReminder = transformDBReminder(updatedDBReminder)
-            set(state => ({
-              reminders: state.reminders.map(reminder =>
-                reminder.id === id ? updatedReminder : reminder
-              ),
-              isLoading: false
-            }))
-          }
-        } catch (error) {
-          set({ 
-            isLoading: false, 
-            error: error instanceof Error ? error.message : 'Σφάλμα κατά την ενημέρωση υπενθύμισης'
-          })
-          throw error
-        }
-      },
-
-      deleteReminder: async (id) => {
-        set({ isLoading: true, error: null })
-        
-        try {
-          await reminderService.deleteReminder(id)
-          set(state => ({
-            reminders: state.reminders.filter(reminder => reminder.id !== id),
-            isLoading: false
-          }))
-        } catch (error) {
-          set({ 
-            isLoading: false, 
-            error: error instanceof Error ? error.message : 'Σφάλμα κατά τη διαγραφή υπενθύμισης'
-          })
-          throw error
-        }
-      },
-
-      markAsCompleted: async (id) => {
-        set({ isLoading: true, error: null })
-        
-        try {
-          await reminderService.markReminderCompleted(id)
-          
-          // Update local state
-          set(state => ({
-            reminders: state.reminders.map(reminder =>
-              reminder.id === id 
-                ? { ...reminder, is_completed: true }
-                : reminder
-            ),
-            isLoading: false
-          }))
-        } catch (error) {
-          set({ 
-            isLoading: false, 
-            error: error instanceof Error ? error.message : 'Σφάλμα κατά την ολοκλήρωση υπενθύμισης'
-          })
-          throw error
-        }
-      },
-
-      getReminder: (id) => {
-        return get().reminders.find(reminder => reminder.id === id)
-      },
-
-      getTodaysReminders: async () => {
-        set({ isLoading: true, error: null })
-        
-        try {
-          const dbReminders = await reminderService.getTodaysReminders()
-          const reminders = dbReminders.map(transformDBReminder)
-          set({ reminders, isLoading: false })
-        } catch (error) {
-          set({ 
-            isLoading: false, 
-            error: error instanceof Error ? error.message : 'Σφάλμα κατά τη φόρτωση σημερινών υπομνημάτων'
-          })
-        }
-      },
-
-      getUpcomingReminders: async (days = 7) => {
-        set({ isLoading: true, error: null })
-        
-        try {
-          const dbReminders = await reminderService.getUpcomingReminders(days)
-          const reminders = dbReminders.map(transformDBReminder)
-          set({ reminders, isLoading: false })
-        } catch (error) {
-          set({ 
-            isLoading: false, 
-            error: error instanceof Error ? error.message : 'Σφάλμα κατά τη φόρτωση προσεχών υπομνημάτων'
-          })
-        }
-      },
-
-      getRemindersByType: async (type) => {
-        set({ isLoading: true, error: null })
-        
-        try {
-          const dbReminders = await reminderService.getRemindersByType(type)
-          const reminders = dbReminders.map(transformDBReminder)
-          set({ reminders, isLoading: false })
-        } catch (error) {
-          set({ 
-            isLoading: false, 
-            error: error instanceof Error ? error.message : 'Σφάλμα κατά τη φόρτωση υπομνημάτων ανά τύπο'
-          })
-        }
-      },
-
-      searchReminders: async (searchTerm) => {
-        set({ isLoading: true, error: null })
-        
-        try {
-          const dbReminders = await reminderService.searchReminders(searchTerm)
-          const reminders = dbReminders.map(transformDBReminder)
-          set({ reminders, isLoading: false })
-        } catch (error) {
-          set({ 
-            isLoading: false, 
-            error: error instanceof Error ? error.message : 'Σφάλμα κατά την αναζήτηση υπομνημάτων'
-          })
-        }
-      },
-
-      setLoading: (loading) => set({ isLoading: loading }),
-      
-      setError: (error) => set({ error }),
-
-      getStats: () => {
-        const reminders = get().reminders
-        const now = new Date()
-        const nextWeek = new Date(now.getTime() + (7 * 24 * 60 * 60 * 1000))
-
-        // Count upcoming reminders (next 7 days)
-        const upcoming = reminders.filter(r => {
-          if (r.is_completed) return false
-          const reminderDate = new Date(r.reminder_date)
-          return reminderDate >= now && reminderDate <= nextWeek
-        }).length
-
-        // Count by type
-        const byType = reminders.reduce((acc, reminder) => {
-          acc[reminder.reminder_type] = (acc[reminder.reminder_type] || 0) + 1
-          return acc
-        }, {} as Record<string, number>)
-
-        return {
-          total: reminders.length,
-          completed: reminders.filter(r => r.is_completed).length,
-          pending: reminders.filter(r => !r.is_completed).length,
-          upcoming,
-          byType
-        }
+// Additional reminder-specific methods
+export const useReminderActions = () => {
+  const store = useReminderStore()
+  
+  return {
+    ...store,
+    
+    // Get reminders with request details
+    getRemindersWithDetails: async () => {
+      try {
+        store.setLoading(true)
+        const detailedReminders = await reminderService.getRemindersWithRequest()
+        // Return as-is for now
+        return detailedReminders
+      } catch (error) {
+        store.setError(error instanceof Error ? error.message : 'Σφάλμα φόρτωσης υπενθυμίσεων')
+        return []
+      } finally {
+        store.setLoading(false)
       }
-    }),
-    {
-      name: 'reminder-storage',
-      // Don't persist loading states and error states
-      partialize: (state) => ({ reminders: state.reminders })
+    },
+    
+    // Get upcoming reminders
+    getUpcomingReminders: async () => {
+      try {
+        const upcoming = await reminderService.getUpcomingReminders()
+        const transformed = upcoming.map(transformDBReminder)
+        return transformed
+      } catch (error) {
+        // Fallback to local calculation
+        const now = new Date()
+        const upcoming = store.items.filter(reminder => 
+          new Date(reminder.reminderDate) >= now && !reminder.isCompleted
+        )
+        return upcoming.sort((a, b) => new Date(a.reminderDate).getTime() - new Date(b.reminderDate).getTime())
+      }
+    },
+    
+    // Mark as completed
+    markCompleted: async (id: string) => {
+      return store.updateItem(id, { isCompleted: true })
+    },
+    
+    // Filter by type
+    filterByType: (type: Reminder['reminderType']): Reminder[] => {
+      return store.items.filter(reminder => reminder.reminderType === type)
+    },
+    
+    // Get overdue reminders
+    getOverdueReminders: (): Reminder[] => {
+      const now = new Date()
+      return store.items.filter(reminder => 
+        new Date(reminder.reminderDate) < now && !reminder.isCompleted
+      )
+    },
+    
+    // Get stats
+    getStats: () => {
+      const reminders = store.items
+      const now = new Date()
+      const nextWeek = new Date(now.getTime() + (7 * 24 * 60 * 60 * 1000))
+      
+      const total = reminders.length
+      const completed = reminders.filter(r => r.isCompleted).length
+      const pending = reminders.filter(r => !r.isCompleted).length
+      const upcoming = reminders.filter(r => {
+        const reminderDate = new Date(r.reminderDate)
+        return !r.isCompleted && reminderDate >= now && reminderDate <= nextWeek
+      }).length
+      
+      const byType = reminders.reduce((acc, reminder) => {
+        const type = reminder.reminderType
+        acc[type] = (acc[type] || 0) + 1
+        return acc
+      }, {} as Record<string, number>)
+      
+      return { total, completed, pending, upcoming, byType }
     }
-  )
-)
+  }
+}

@@ -1,5 +1,4 @@
-import { create } from 'zustand'
-import { persist } from 'zustand/middleware'
+import { createSmartStore, CacheProfiles } from './baseStore'
 import { militaryService, type MilitaryPersonnel as DBMilitaryPersonnel, type MilitaryPersonnelInput } from '../services/militaryService'
 
 // Frontend interface that maps to backend data
@@ -9,280 +8,195 @@ export interface MilitaryPersonnel {
   surname: string
   rank: string
   unit: string
+  wish?: string
+  sendDate?: string
+  comments?: string
   militaryId: string
   esso: string
   essoYear: string
   essoLetter: string
-  requestType: string
   status: 'pending' | 'approved' | 'rejected' | 'completed'
   created_at: string
   updated_at: string
 }
 
-interface MilitaryStore {
-  militaryPersonnel: MilitaryPersonnel[]
-  isLoading: boolean
-  error: string | null
-  
-  // Actions
-  loadMilitaryPersonnel: () => Promise<void>
-  addMilitaryPersonnel: (personnelData: Omit<MilitaryPersonnel, 'id' | 'created_at' | 'updated_at'>) => Promise<void>
-  updateMilitaryPersonnel: (id: string, personnelData: Partial<MilitaryPersonnel>) => Promise<void>
-  deleteMilitaryPersonnel: (id: string) => Promise<void>
-  getMilitaryPersonnel: (id: string) => MilitaryPersonnel | undefined
-  searchMilitaryPersonnel: (searchTerm: string) => Promise<void>
-  filterByEsso: (essoYear: string, essoLetter?: string) => Promise<void>
-  filterByStatus: (status: string) => MilitaryPersonnel[]
-  setLoading: (loading: boolean) => void
-  setError: (error: string | null) => void
-  
-  // Computed
-  getStats: () => Promise<{
-    total: number
-    pending: number
-    approved: number
-    rejected: number
-    completed: number
-    by_year: Record<string, number>
-  }>
-  
-  getEssoGroups: () => Record<string, MilitaryPersonnel[]>
-  getEssoYears: () => Promise<string[]>
-}
-
 // Helper function to transform database military personnel to frontend
-const transformDBMilitaryPersonnel = (dbPersonnel: DBMilitaryPersonnel): MilitaryPersonnel & { description?: string; sendDate?: string; notes?: string } => ({
+const transformDBMilitaryPersonnel = (dbPersonnel: DBMilitaryPersonnel): MilitaryPersonnel => ({
   id: dbPersonnel.id,
   name: dbPersonnel.name,
   surname: dbPersonnel.surname,
   rank: dbPersonnel.rank || '',
   unit: dbPersonnel.service_unit || '',
+  wish: dbPersonnel.wish || undefined,
+  sendDate: dbPersonnel.send_date || undefined,
+  comments: dbPersonnel.comments || undefined,
   militaryId: dbPersonnel.military_id || '',
   esso: dbPersonnel.esso || '',
   essoYear: dbPersonnel.esso_year || '',
   essoLetter: dbPersonnel.esso_letter || '',
-  requestType: dbPersonnel.wish || '',
-  description: dbPersonnel.wish || '', // Map wish to both requestType and description for backward compatibility
-  sendDate: dbPersonnel.send_date || '',
-  notes: dbPersonnel.comments || '',
-  status: (dbPersonnel.status as 'pending' | 'approved' | 'rejected' | 'completed') || 'pending',
+  status: dbPersonnel.status || 'pending',
   created_at: dbPersonnel.created_at,
   updated_at: dbPersonnel.updated_at
 })
 
-// Helper function to transform frontend military personnel to database input
-const transformToDBInput = (personnel: Partial<MilitaryPersonnel> & { description?: string; sendDate?: string; notes?: string }): Partial<MilitaryPersonnelInput> => ({
-  name: personnel.name || '',
-  surname: personnel.surname || '',
-  rank: personnel.rank || null,
-  service_unit: personnel.unit || null,
-  military_id: personnel.militaryId || null,
-  esso: personnel.esso || null,
-  esso_year: personnel.essoYear || null,
-  esso_letter: (personnel.essoLetter as any) || null,
-  wish: personnel.description || personnel.requestType || null, // Prefer description over requestType
+// Helper function to transform frontend to database input
+const transformToDBInput = (personnel: Partial<MilitaryPersonnel>): Partial<MilitaryPersonnelInput> => ({
+  name: personnel.name,
+  surname: personnel.surname,
+  rank: personnel.rank?.trim() || null,
+  service_unit: personnel.unit?.trim() || null,
+  wish: personnel.wish?.trim() || null,
   send_date: personnel.sendDate || null,
-  comments: personnel.notes || null,
+  comments: personnel.comments?.trim() || null,
+  military_id: personnel.militaryId?.trim() || null,
+  esso: personnel.esso?.trim() || null,
+  esso_year: personnel.essoYear?.trim() || null,
+  esso_letter: (personnel.essoLetter?.trim() as 'Α' | 'Β' | 'Γ' | 'Δ' | 'Ε' | 'ΣΤ') || null,
   status: personnel.status || 'pending'
 })
 
-export const useMilitaryStore = create<MilitaryStore>()(
-  persist(
-    (set, get) => ({
-      militaryPersonnel: [],
-      isLoading: false,
-      error: null,
+// Service adapter to match BaseStore expectations
+const militaryServiceAdapter = {
+  getAll: () => militaryService.getAllMilitaryPersonnel(),
+  create: (data: MilitaryPersonnelInput) => militaryService.createMilitaryPersonnel(data),
+  update: (id: string, data: Partial<MilitaryPersonnelInput>) => militaryService.updateMilitaryPersonnel(id, data),
+  delete: (id: string) => militaryService.deleteMilitaryPersonnel(id)
+}
 
-      loadMilitaryPersonnel: async () => {
-        set({ isLoading: true, error: null })
-        
-        try {
-          const dbPersonnel = await militaryService.getAllMilitaryPersonnel()
-          const militaryPersonnel = dbPersonnel.map(transformDBMilitaryPersonnel)
-          set({ militaryPersonnel, isLoading: false })
-        } catch (error) {
-          set({ 
-            isLoading: false, 
-            error: error instanceof Error ? error.message : 'Σφάλμα κατά τη φόρτωση στρατιωτικού προσωπικού'
-          })
-        }
-      },
+// Create the smart military store
+export const useMilitaryStore = createSmartStore<MilitaryPersonnel, MilitaryPersonnelInput, typeof militaryServiceAdapter>({
+  storeName: 'military',
+  cacheConfig: CacheProfiles.MODERATE, // Military data changes moderately
+  service: militaryServiceAdapter,
+  transformFromDB: transformDBMilitaryPersonnel,
+  transformToDB: transformToDBInput
+})
 
-      addMilitaryPersonnel: async (personnelData) => {
-        set({ isLoading: true, error: null })
-        
-        try {
-          const dbInput = transformToDBInput(personnelData) as MilitaryPersonnelInput
-          const newDBPersonnel = await militaryService.createMilitaryPersonnel(dbInput)
-          const newPersonnel = transformDBMilitaryPersonnel(newDBPersonnel)
-          
-          set(state => ({
-            militaryPersonnel: [newPersonnel, ...state.militaryPersonnel],
-            isLoading: false
-          }))
-        } catch (error) {
-          set({ 
-            isLoading: false, 
-            error: error instanceof Error ? error.message : 'Σφάλμα κατά την προσθήκη στρατιωτικού'
-          })
-          throw error
-        }
-      },
-
-      updateMilitaryPersonnel: async (id, personnelData) => {
-        console.log('Store: Starting updateMilitaryPersonnel with id:', id)
-        console.log('Store: Personnel data:', personnelData)
-        set({ isLoading: true, error: null })
-        
-        try {
-          console.log('Store: Transforming to DB input...')
-          const dbInput = transformToDBInput(personnelData)
-          console.log('Store: DB input:', dbInput)
-          
-          console.log('Store: Calling militaryService.updateMilitaryPersonnel...')
-          const updatedDBPersonnel = await militaryService.updateMilitaryPersonnel(id, dbInput)
-          console.log('Store: Service returned:', updatedDBPersonnel)
-          
-          console.log('Store: Transforming DB personnel to frontend...')
-          const updatedPersonnel = transformDBMilitaryPersonnel(updatedDBPersonnel)
-          console.log('Store: Updated personnel:', updatedPersonnel)
-          
-          console.log('Store: Updating store state...')
-          set(state => ({
-            militaryPersonnel: state.militaryPersonnel.map(personnel =>
-              personnel.id === id ? updatedPersonnel : personnel
-            ),
-            isLoading: false
-          }))
-          
-          console.log('Store: Update completed successfully')
-        } catch (error) {
-          console.error('Store: Error during update:', error)
-          set({ 
-            isLoading: false, 
-            error: error instanceof Error ? error.message : 'Σφάλμα κατά την ενημέρωση στρατιωτικού'
-          })
-          throw error
-        }
-      },
-
-      deleteMilitaryPersonnel: async (id) => {
-        set({ isLoading: true, error: null })
-        
-        try {
-          await militaryService.deleteMilitaryPersonnel(id)
-          set(state => ({
-            militaryPersonnel: state.militaryPersonnel.filter(personnel => personnel.id !== id),
-            isLoading: false
-          }))
-        } catch (error) {
-          set({ 
-            isLoading: false, 
-            error: error instanceof Error ? error.message : 'Σφάλμα κατά τη διαγραφή στρατιωτικού'
-          })
-          throw error
-        }
-      },
-
-      getMilitaryPersonnel: (id) => {
-        return get().militaryPersonnel.find(personnel => personnel.id === id)
-      },
-
-      searchMilitaryPersonnel: async (searchTerm) => {
-        set({ isLoading: true, error: null })
-        
-        try {
-          const dbPersonnel = await militaryService.searchMilitaryPersonnel(searchTerm)
-          const militaryPersonnel = dbPersonnel.map(transformDBMilitaryPersonnel)
-          set({ militaryPersonnel, isLoading: false })
-        } catch (error) {
-          set({ 
-            isLoading: false, 
-            error: error instanceof Error ? error.message : 'Σφάλμα κατά την αναζήτηση'
-          })
-        }
-      },
-
-      filterByEsso: async (essoYear, essoLetter) => {
-        set({ isLoading: true, error: null })
-        
-        try {
-          const dbPersonnel = await militaryService.getMilitaryPersonnelByEsso(essoYear, essoLetter)
-          const militaryPersonnel = dbPersonnel.map(transformDBMilitaryPersonnel)
-          set({ militaryPersonnel, isLoading: false })
-        } catch (error) {
-          set({ 
-            isLoading: false, 
-            error: error instanceof Error ? error.message : 'Σφάλμα κατά το φιλτράρισμα ΕΣΣΟ'
-          })
-        }
-      },
-
-      filterByStatus: (status) => {
-        if (!status) return get().militaryPersonnel
-        return get().militaryPersonnel.filter(personnel => personnel.status === status)
-      },
-
-      setLoading: (loading) => set({ isLoading: loading }),
+// Additional military-specific methods
+export const useMilitaryActions = () => {
+  const store = useMilitaryStore()
+  
+  return {
+    ...store,
+    
+    // Search functionality
+    searchMilitaryPersonnel: async (searchTerm: string) => {
+      if (!searchTerm.trim()) {
+        return store.loadItems()
+      }
       
-      setError: (error) => set({ error }),
-
-      getStats: async () => {
-        try {
-          return await militaryService.getMilitaryStats()
-        } catch (error) {
-          console.error('Σφάλμα στατιστικών στρατιωτικού προσωπικού:', error)
-          // Fallback to local calculation if service fails
-          const personnel = get().militaryPersonnel
-          const by_year = personnel.reduce((acc, p) => {
-            if (p.essoYear) {
-              acc[p.essoYear] = (acc[p.essoYear] || 0) + 1
-            }
-            return acc
-          }, {} as Record<string, number>)
-
-          return {
-            total: personnel.length,
-            pending: personnel.filter(p => p.status === 'pending').length,
-            approved: personnel.filter(p => p.status === 'approved').length,
-            rejected: personnel.filter(p => p.status === 'rejected').length,
-            completed: personnel.filter(p => p.status === 'completed').length,
-            by_year
-          }
-        }
-      },
-
-      getEssoGroups: () => {
-        const personnel = get().militaryPersonnel
-        const groups: Record<string, MilitaryPersonnel[]> = {}
-
-        personnel.forEach(p => {
-          const key = `${p.essoYear}${p.essoLetter}`
-          if (!groups[key]) {
-            groups[key] = []
-          }
-          groups[key].push(p)
+      try {
+        store.setLoading(true)
+        store.setError(null)
+        
+        const searchResults = await militaryService.searchMilitaryPersonnel(searchTerm)
+        const transformedResults = searchResults.map(transformDBMilitaryPersonnel)
+        
+        // Update store with search results
+        useMilitaryStore.setState({ 
+          items: transformedResults,
+          isLoading: false 
         })
+        
+      } catch (error) {
+        store.setError(error instanceof Error ? error.message : 'Σφάλμα αναζήτησης')
+        store.setLoading(false)
+      }
+    },
+    
+    // Filter by ESSO
+    filterByEsso: async (essoYear: string, essoLetter?: string) => {
+      try {
+        store.setLoading(true)
+        const results = await militaryService.getMilitaryPersonnelByEsso(essoYear, essoLetter)
+        const transformed = results.map(transformDBMilitaryPersonnel)
+        
+        useMilitaryStore.setState({ 
+          items: transformed,
+          isLoading: false 
+        })
+        
+        return transformed
+      } catch (error) {
+        store.setError(error instanceof Error ? error.message : 'Σφάλμα φίλτρου ΕΣΣΟ')
+        store.setLoading(false)
+        return []
+      }
+    },
+    
+    // Filter by status (local operation)
+    filterByStatus: (status: string): MilitaryPersonnel[] => {
+      return store.items.filter(person => person.status === status)
+    },
+    
+    // Get statistics
+    getStats: async () => {
+      try {
+        const stats = await militaryService.getMilitaryStats()
+        return stats
+      } catch (error) {
+        console.error('Error getting military stats:', error)
+        
+        // Fallback to local calculation
+        const personnel = store.items
+        const byStatus = personnel.reduce((acc, person) => {
+          acc[person.status] = (acc[person.status] || 0) + 1
+          return acc
+        }, {} as Record<string, number>)
+        
+        const byYear = personnel.reduce((acc, person) => {
+          const year = person.essoYear || 'Άγνωστο'
+          acc[year] = (acc[year] || 0) + 1
+          return acc
+        }, {} as Record<string, number>)
 
-        return groups
-      },
-
-      getEssoYears: async () => {
-        try {
-          return await militaryService.getEssoYears()
-        } catch (error) {
-          console.error('Σφάλμα φόρτωσης ετών ΕΣΣΟ:', error)
-          // Fallback to local data
-          const personnel = get().militaryPersonnel
-          const years = [...new Set(personnel.map(p => p.essoYear).filter(Boolean))]
-          return years.sort().reverse()
+        return {
+          total: personnel.length,
+          pending: byStatus.pending || 0,
+          approved: byStatus.approved || 0,
+          rejected: byStatus.rejected || 0,
+          completed: byStatus.completed || 0,
+          by_year: byYear
         }
       }
-    }),
-    {
-      name: 'military-storage',
-      // Don't persist loading states and error states
-      partialize: (state) => ({ militaryPersonnel: state.militaryPersonnel })
+    },
+    
+    // Group by ESSO
+    getEssoGroups: (): Record<string, MilitaryPersonnel[]> => {
+      return store.items.reduce((groups, person) => {
+        const key = `${person.essoYear}-${person.essoLetter}` || 'Άλλο'
+        if (!groups[key]) groups[key] = []
+        groups[key].push(person)
+        return groups
+      }, {} as Record<string, MilitaryPersonnel[]>)
+    },
+    
+    // Get available ESSO years
+    getEssoYears: async (): Promise<string[]> => {
+      try {
+        const years = await militaryService.getEssoYears()
+        return years
+      } catch (error) {
+        // Fallback to local calculation
+        const uniqueYears = [...new Set(store.items.map(p => p.essoYear).filter(Boolean))]
+        return uniqueYears.sort((a, b) => b.localeCompare(a))
+      }
+    },
+    
+    // Update status (common operation)
+    updateStatus: async (id: string, status: MilitaryPersonnel['status']) => {
+      return store.updateItem(id, { status })
     }
-  )
-)
+  }
+}
+
+// Convenience hook for single military personnel
+export const useMilitaryPersonnel = (id?: string) => {
+  const store = useMilitaryStore()
+  
+  return {
+    personnel: id ? store.getItem(id) : null,
+    isLoading: store.isLoading,
+    error: store.error
+  }
+}

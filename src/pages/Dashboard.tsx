@@ -18,17 +18,17 @@ export function Dashboard() {
   // Initialize with cached data if available
   const [loading, setLoading] = useState(() => {
     // Only show loading if we have no cached data at all
-    return citizenStore.citizens.length === 0 && 
-           requestStore.requests.length === 0 && 
-           militaryStore.militaryPersonnel.length === 0
+    return citizenStore.items.length === 0 && 
+           requestStore.items.length === 0 && 
+           militaryStore.items.length === 0
   })
   const [error, setError] = useState<string | null>(null)
   
   // Calculate initial stats from cached data
   const calculateStatsFromStores = () => {
-    const citizens = citizenStore.citizens
-    const requests = requestStore.requests
-    const military = militaryStore.militaryPersonnel
+    const citizens = citizenStore.items
+    const requests = requestStore.items
+    const military = militaryStore.items
     
     const activeCitizens = citizens.filter(c => c.status === 'active' || !c.status).length
     const pendingRequests = requests.filter(r => 
@@ -62,7 +62,7 @@ export function Dashboard() {
     
     const loadDashboardData = async () => {
       // Don't set loading on initial render if we have cached data
-      if (citizenStore.citizens.length === 0 && requestStore.requests.length === 0) {
+      if (citizenStore.items.length === 0 && requestStore.items.length === 0) {
         setLoading(true)
       }
       setError(null)
@@ -207,9 +207,9 @@ export function Dashboard() {
 
         // Also load data into stores for other components
         await Promise.allSettled([
-          citizenStore.loadCitizens(),
-          requestStore.loadRequests(),
-          militaryStore.loadMilitaryPersonnel()
+          citizenStore.loadItems(),
+          requestStore.loadItems(),
+          militaryStore.loadItems()
         ])
 
       } catch (error) {
@@ -349,114 +349,114 @@ export function Dashboard() {
   }
 
   return (
-    <div className="p-8">
+    <div className="responsive-padding py-4 sm:py-6 lg:py-8">
       {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-white mb-2">
+      <div className="mb-6 sm:mb-8">
+        <h1 className="text-2xl sm:text-3xl font-bold text-white mb-2">
           Πίνακας Διοίκησης
         </h1>
-        <p className="text-gray-400">
+        <p className="text-sm sm:text-base text-gray-400">
           Επισκόπηση του συστήματος διαχείρισης πολιτών και στρατιωτικών αιτημάτων
         </p>
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-6 sm:mb-8">
         {statCards.map((card, index) => (
           <div
             key={index}
-            className={`bg-slate-800 border ${card.borderColor} rounded-xl p-6 hover:bg-slate-700/50 transition-all duration-300 transform hover:scale-105`}
+            className={`bg-slate-800 border ${card.borderColor} rounded-xl p-4 sm:p-6 hover:bg-slate-700/50 transition-all duration-300 transform hover:scale-105`}
           >
-            <div className="flex items-center justify-between mb-4">
-              <div className={`p-3 rounded-lg ${card.bgColor}`}>
-                <card.icon className={`h-6 w-6 ${card.color}`} />
+            <div className="flex items-center justify-between mb-3 sm:mb-4">
+              <div className={`p-2 sm:p-3 rounded-lg ${card.bgColor} flex-shrink-0`}>
+                <card.icon className={`h-5 w-5 sm:h-6 sm:w-6 ${card.color}`} />
               </div>
-              <div className="text-right">
-                <div className="text-2xl font-bold text-white">
+              <div className="text-right min-w-0 flex-1 ml-3">
+                <div className="text-xl sm:text-2xl font-bold text-white truncate">
                   {typeof card.value === 'number' ? card.value.toLocaleString('el-GR') : card.value}
                 </div>
-                <div className="text-sm text-gray-400">
+                <div className="text-xs sm:text-sm text-gray-400 truncate">
                   {card.title}
                 </div>
                 {card.subtitle && (
-                  <div className="text-xs text-gray-500 mt-1">
+                  <div className="text-xs text-gray-500 mt-1 truncate">
                     {card.subtitle}
                   </div>
                 )}
               </div>
             </div>
             <div className="flex items-center justify-between">
-              <span className={`text-xs px-2 py-1 rounded-full ${
+              <span className={`text-xs px-2 py-1 rounded-full flex-shrink-0 ${
                 card.growth.startsWith('+') ? 'bg-green-500/20 text-green-400' : 
                 card.growth.startsWith('-') ? 'bg-red-500/20 text-red-400' : 
                 'bg-gray-500/20 text-gray-400'
               }`}>
                 {card.growth}
               </span>
-              <span className="text-xs text-gray-500">vs προηγ. μήνα</span>
+              <span className="text-xs text-gray-500 ml-2 truncate">vs προηγ. μήνα</span>
             </div>
           </div>
         ))}
       </div>
 
       {/* Main Content Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 mb-6 sm:mb-8">
         {/* Reminders Widget */}
         <ReminderWidget />
         
         {/* Quick Actions */}
-        <div className="bg-slate-800 border border-slate-700 rounded-xl p-6">
-          <div className="flex items-center mb-6">
-            <TrendingUp className="h-5 w-5 mr-3 text-blue-400" />
-            <h2 className="text-xl font-semibold text-white">
+        <div className="bg-slate-800 border border-slate-700 rounded-xl p-4 sm:p-6">
+          <div className="flex items-center mb-4 sm:mb-6">
+            <TrendingUp className="h-5 w-5 mr-3 text-blue-400 flex-shrink-0" />
+            <h2 className="text-lg sm:text-xl font-semibold text-white">
               Γρήγορες Ενέργειες
             </h2>
           </div>
-          <div className="space-y-4">
+          <div className="space-y-3 sm:space-y-4">
             <button 
               onClick={() => navigate('/dashboard/citizens')}
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white p-4 rounded-lg transition-colors duration-200 flex items-center">
-              <Users className="h-5 w-5 mr-3" />
-              <span>Νέος Πολίτης</span>
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white p-3 sm:p-4 rounded-lg transition-colors duration-200 flex items-center touch-target">
+              <Users className="h-5 w-5 mr-3 flex-shrink-0" />
+              <span className="font-medium">Νέος Πολίτης</span>
             </button>
             <button 
               onClick={() => navigate('/dashboard/requests')}
-              className="w-full bg-slate-700 hover:bg-slate-600 text-white p-4 rounded-lg transition-colors duration-200 flex items-center">
-              <FileText className="h-5 w-5 mr-3" />
-              <span>Νέο Αίτημα</span>
+              className="w-full bg-slate-700 hover:bg-slate-600 text-white p-3 sm:p-4 rounded-lg transition-colors duration-200 flex items-center touch-target">
+              <FileText className="h-5 w-5 mr-3 flex-shrink-0" />
+              <span className="font-medium">Νέο Αίτημα</span>
             </button>
             <button 
               onClick={() => navigate('/dashboard/military')}
-              className="w-full bg-slate-700 hover:bg-slate-600 text-white p-4 rounded-lg transition-colors duration-200 flex items-center">
-              <Shield className="h-5 w-5 mr-3" />
-              <span>Στρατιωτικό</span>
+              className="w-full bg-slate-700 hover:bg-slate-600 text-white p-3 sm:p-4 rounded-lg transition-colors duration-200 flex items-center touch-target">
+              <Shield className="h-5 w-5 mr-3 flex-shrink-0" />
+              <span className="font-medium">Στρατιωτικό</span>
             </button>
             <button 
               onClick={() => navigate('/dashboard/reports')}
-              className="w-full bg-slate-700 hover:bg-slate-600 text-white p-4 rounded-lg transition-colors duration-200 flex items-center">
-              <Calendar className="h-5 w-5 mr-3" />
-              <span>Αναφορές</span>
+              className="w-full bg-slate-700 hover:bg-slate-600 text-white p-3 sm:p-4 rounded-lg transition-colors duration-200 flex items-center touch-target">
+              <Calendar className="h-5 w-5 mr-3 flex-shrink-0" />
+              <span className="font-medium">Αναφορές</span>
             </button>
           </div>
           
           {/* System Stats */}
-          <div className="mt-6 pt-6 border-t border-slate-600">
-            <h3 className="text-sm font-medium text-slate-300 mb-4">Στατιστικά Συστήματος</h3>
-            <div className="grid grid-cols-2 gap-4">
+          <div className="mt-4 sm:mt-6 pt-4 sm:pt-6 border-t border-slate-600">
+            <h3 className="text-sm font-medium text-slate-300 mb-3 sm:mb-4">Στατιστικά Συστήματος</h3>
+            <div className="grid grid-cols-2 gap-3 sm:gap-4">
               <div className="text-center">
-                <div className="text-lg font-semibold text-blue-400">{stats.inProgressRequests}</div>
+                <div className="text-base sm:text-lg font-semibold text-blue-400">{stats.inProgressRequests}</div>
                 <div className="text-xs text-slate-400">Σε Εξέλιξη</div>
               </div>
               <div className="text-center">
-                <div className="text-lg font-semibold text-green-400">{stats.completedRequests}</div>
+                <div className="text-base sm:text-lg font-semibold text-green-400">{stats.completedRequests}</div>
                 <div className="text-xs text-slate-400">Ολοκληρωμένα</div>
               </div>
               <div className="text-center">
-                <div className="text-lg font-semibold text-emerald-400">{stats.activeCitizens}</div>
+                <div className="text-base sm:text-lg font-semibold text-emerald-400">{stats.activeCitizens}</div>
                 <div className="text-xs text-slate-400">Ενεργοί Πολίτες</div>
               </div>
               <div className="text-center">
-                <div className="text-lg font-semibold text-yellow-400">{stats.militaryPersonnel}</div>
+                <div className="text-base sm:text-lg font-semibold text-yellow-400">{stats.militaryPersonnel}</div>
                 <div className="text-xs text-slate-400">Ενεργός Στρατός</div>
               </div>
             </div>
@@ -467,13 +467,13 @@ export function Dashboard() {
       {/* Charts Section */}
       {analyticsData && (
         <>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 mb-6 sm:mb-8">
             {/* Monthly Trends */}
             <StatisticsChart
               type="line"
               data={analyticsData.monthlyTrends}
               title="Μηνιαία Εξέλιξη"
-              height={300}
+              height={250}
             />
             
             {/* Status Distribution */}
@@ -481,18 +481,18 @@ export function Dashboard() {
               type="pie"
               data={analyticsData.statusDistribution}
               title="Κατανομή Κατάστασης"
-              height={300}
+              height={250}
             />
           </div>
 
           {/* Additional Charts */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 mb-6 sm:mb-8">
             {/* Request Distribution */}
             <StatisticsChart
               type="pie"
               data={analyticsData.requestDistribution}
               title="Κατανομή Αιτημάτων"
-              height={300}
+              height={250}
             />
             
             {/* Bar Chart */}
@@ -500,50 +500,50 @@ export function Dashboard() {
               type="bar"
               data={analyticsData.monthlyTrends.slice(-6)}
               title="Τελευταίοι 6 Μήνες (Στήλες)"
-              height={300}
+              height={250}
             />
           </div>
         </>
       )}
 
       {/* Performance Metrics */}
-      <div className="bg-slate-800 border border-slate-700 rounded-xl p-6">
-        <div className="flex items-center mb-6">
-          <BarChart3 className="h-5 w-5 mr-3 text-blue-400" />
-          <h2 className="text-xl font-semibold text-white">
+      <div className="bg-slate-800 border border-slate-700 rounded-xl p-4 sm:p-6">
+        <div className="flex items-center mb-4 sm:mb-6">
+          <BarChart3 className="h-5 w-5 mr-3 text-blue-400 flex-shrink-0" />
+          <h2 className="text-lg sm:text-xl font-semibold text-white">
             Μετρικές Απόδοσης
           </h2>
         </div>
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+        <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
           <div className="text-center">
-            <div className="text-2xl font-bold text-blue-400">
+            <div className="text-lg sm:text-xl lg:text-2xl font-bold text-blue-400 truncate">
               {performanceMetrics.avgProcessingTime}
             </div>
-            <div className="text-sm text-gray-400">Μέσος Χρόνος</div>
+            <div className="text-xs sm:text-sm text-gray-400">Μέσος Χρόνος</div>
           </div>
           <div className="text-center">
-            <div className="text-2xl font-bold text-green-400">
+            <div className="text-lg sm:text-xl lg:text-2xl font-bold text-green-400 truncate">
               {performanceMetrics.satisfactionRate}
             </div>
-            <div className="text-sm text-gray-400">Ικανοποίηση</div>
+            <div className="text-xs sm:text-sm text-gray-400">Ικανοποίηση</div>
           </div>
           <div className="text-center">
-            <div className="text-2xl font-bold text-cyan-400">
+            <div className="text-lg sm:text-xl lg:text-2xl font-bold text-cyan-400 truncate">
               {performanceMetrics.systemUptime}
             </div>
-            <div className="text-sm text-gray-400">Διαθεσιμότητα</div>
+            <div className="text-xs sm:text-sm text-gray-400">Διαθεσιμότητα</div>
           </div>
           <div className="text-center">
-            <div className="text-2xl font-bold text-yellow-400">
+            <div className="text-lg sm:text-xl lg:text-2xl font-bold text-yellow-400 truncate">
               {performanceMetrics.activeUsers}
             </div>
-            <div className="text-sm text-gray-400">Ενεργοί Χρήστες</div>
+            <div className="text-xs sm:text-sm text-gray-400">Ενεργοί Χρήστες</div>
           </div>
-          <div className="text-center">
-            <div className="text-2xl font-bold text-purple-400">
+          <div className="text-center xs:col-span-2 sm:col-span-1">
+            <div className="text-lg sm:text-xl lg:text-2xl font-bold text-purple-400 truncate">
               {performanceMetrics.monthlyTransactions.toLocaleString('el-GR')}
             </div>
-            <div className="text-sm text-gray-400">Μηνιαίες Συναλλαγές</div>
+            <div className="text-xs sm:text-sm text-gray-400">Μηνιαίες Συναλλαγές</div>
           </div>
         </div>
       </div>

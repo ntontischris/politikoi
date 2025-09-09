@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { Bell, Clock, AlertTriangle, CheckCircle, Calendar } from 'lucide-react'
-import { useReminderStore, type Reminder } from '../../stores/reminderStore'
+import { useReminderActions, type Reminder } from '../../stores/reminderStore'
 
 const typeColors = {
   'ΕΟΡΤΗ': 'text-purple-400',
@@ -17,12 +17,12 @@ const typeLabels = {
 
 export const ReminderWidget: React.FC = () => {
   const { 
-    reminders,
-    loadReminders,
-    markAsCompleted,
+    items: reminders,
+    loadItems,
+    markCompleted,
     getStats,
     isLoading
-  } = useReminderStore()
+  } = useReminderActions()
   
   const [activeTab, setActiveTab] = useState<'overdue' | 'upcoming'>('overdue')
   const [stats, setStats] = useState({ total: 0, completed: 0, pending: 0, upcoming: 0, byType: {} })
@@ -31,7 +31,7 @@ export const ReminderWidget: React.FC = () => {
   useEffect(() => {
     const loadData = async () => {
       try {
-        await loadReminders()
+        await loadItems()
         const statsData = getStats()
         setStats(statsData)
       } catch (error) {
@@ -43,25 +43,29 @@ export const ReminderWidget: React.FC = () => {
   
   // Filter reminders manually since we removed the specific filter functions
   const getOverdueReminders = () => {
+    if (!reminders || !Array.isArray(reminders)) return []
+    
     const now = new Date()
     now.setHours(23, 59, 59, 999)
     
     return reminders.filter(reminder => {
-      if (reminder.is_completed) return false
-      const reminderDate = new Date(reminder.reminder_date)
+      if (reminder.isCompleted) return false
+      const reminderDate = new Date(reminder.reminderDate)
       return reminderDate < now
-    }).sort((a, b) => new Date(a.reminder_date).getTime() - new Date(b.reminder_date).getTime())
+    }).sort((a, b) => new Date(a.reminderDate).getTime() - new Date(b.reminderDate).getTime())
   }
   
   const getUpcomingRemindersLocal = () => {
+    if (!reminders || !Array.isArray(reminders)) return []
+    
     const now = new Date()
     const nextWeek = new Date(now.getTime() + (7 * 24 * 60 * 60 * 1000))
     
     return reminders.filter(reminder => {
-      if (reminder.is_completed) return false
-      const reminderDate = new Date(reminder.reminder_date)
+      if (reminder.isCompleted) return false
+      const reminderDate = new Date(reminder.reminderDate)
       return reminderDate >= now && reminderDate <= nextWeek
-    }).sort((a, b) => new Date(a.reminder_date).getTime() - new Date(b.reminder_date).getTime())
+    }).sort((a, b) => new Date(a.reminderDate).getTime() - new Date(b.reminderDate).getTime())
   }
   
   const overdueReminders = getOverdueReminders()
@@ -69,7 +73,7 @@ export const ReminderWidget: React.FC = () => {
 
   const handleMarkCompleted = async (reminder: Reminder) => {
     try {
-      await markAsCompleted(reminder.id)
+      await markCompleted(reminder.id)
       // Refresh stats after completing a reminder
       const statsData = getStats()
       setStats(statsData)
@@ -109,18 +113,18 @@ export const ReminderWidget: React.FC = () => {
             <div className="flex items-center space-x-3 text-xs">
               <div className="flex items-center space-x-1">
                 <Calendar className="w-3 h-3 text-blue-400" />
-                <span className="text-slate-400">{formatDate(reminder.reminder_date)}</span>
+                <span className="text-slate-400">{formatDate(reminder.reminderDate)}</span>
               </div>
-              <span className={`font-medium ${typeColors[reminder.reminder_type]}`}>
-                {typeLabels[reminder.reminder_type]}
+              <span className={`font-medium ${typeColors[reminder.reminderType]}`}>
+                {typeLabels[reminder.reminderType]}
               </span>
               <span className="text-slate-500">
-                {getTimeStatus(reminder.reminder_date)}
+                {getTimeStatus(reminder.reminderDate)}
               </span>
             </div>
           </div>
           <div className="flex items-center space-x-1 ml-2">
-            {!reminder.is_completed && (
+            {!reminder.isCompleted && (
               <button
                 onClick={() => handleMarkCompleted(reminder)}
                 className="p-1 text-green-400 hover:text-green-300 hover:bg-slate-600 rounded transition-colors"

@@ -17,31 +17,38 @@ export function DataPreloader({ children }: DataPreloaderProps) {
     let mounted = true
 
     const initializeData = async () => {
-      // Check if we already have data in stores (from persistence)
-      const hasData = citizenStore.citizens.length > 0 || 
-                     requestStore.requests.length > 0 || 
-                     militaryStore.militaryPersonnel.length > 0
+      console.log('🚀 DataPreloader: Starting initialization...')
+      
+      // Check if we already have data in stores
+      const hasData = citizenStore.items.length > 0 || 
+                     requestStore.items.length > 0 || 
+                     militaryStore.items.length > 0
+
+      console.log('📊 Has cached data:', hasData)
 
       if (hasData) {
         // We have cached data, show the app immediately
+        console.log('⚡ Using cached data, showing app immediately')
         setIsInitializing(false)
         
         // Load fresh data in the background
         Promise.allSettled([
-          citizenStore.loadCitizens(),
-          requestStore.loadRequests(),
-          militaryStore.loadMilitaryPersonnel()
+          citizenStore.loadItems(),
+          requestStore.loadItems(),
+          militaryStore.loadItems()
         ]).catch(error => {
           console.error('Background data refresh error:', error)
         })
       } else {
         // No cached data, load before showing the app
+        console.log('📡 No cached data, loading fresh data...')
         try {
           await Promise.allSettled([
-            citizenStore.loadCitizens(),
-            requestStore.loadRequests(),
-            militaryStore.loadMilitaryPersonnel()
+            citizenStore.loadItems(),
+            requestStore.loadItems(),
+            militaryStore.loadItems()
           ])
+          console.log('✅ Initial data load completed')
         } catch (error) {
           console.error('Initial data load error:', error)
         } finally {

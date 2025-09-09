@@ -42,7 +42,7 @@ export const CommunicationTimeline: React.FC<CommunicationTimelineProps> = ({
   // Load communications on mount
   useEffect(() => {
     loadCommunicationsByCitizen(citizenId)
-  }, [citizenId, loadCommunicationsByCitizen])
+  }, [citizenId])
 
   const communications = getCommunicationsByCitizen(citizenId)
   const lastCommunication = getLastCommunicationByCitizen(citizenId)
@@ -90,11 +90,11 @@ export const CommunicationTimeline: React.FC<CommunicationTimelineProps> = ({
   }
 
   return (
-    <div className="bg-slate-800/50 backdrop-blur-lg border border-slate-700 rounded-lg p-6">
+    <div className="bg-slate-800/50 backdrop-blur-lg border border-slate-700 rounded-lg responsive-padding">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 space-y-3 sm:space-y-0">
         <div>
-          <h3 className="text-lg font-semibold text-white flex items-center">
+          <h3 className="text-base sm:text-lg font-semibold text-white flex items-center">
             <Clock className="w-5 h-5 mr-2 text-blue-400" />
             Ιστορικό Επικοινωνίας
           </h3>
@@ -104,7 +104,7 @@ export const CommunicationTimeline: React.FC<CommunicationTimelineProps> = ({
         </div>
         <button
           onClick={() => setShowForm(true)}
-          className="flex items-center space-x-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+          className="flex items-center justify-center space-x-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors touch-target w-full sm:w-auto"
         >
           <Plus className="w-4 h-4" />
           <span>Νέα Επικοινωνία</span>
@@ -113,9 +113,9 @@ export const CommunicationTimeline: React.FC<CommunicationTimelineProps> = ({
 
       {/* Last Communication Summary */}
       {lastCommunication && (
-        <div className="mb-6 p-4 bg-gradient-to-r from-blue-500/10 to-purple-500/10 border border-blue-500/20 rounded-lg">
+        <div className="mb-6 responsive-padding bg-gradient-to-r from-blue-500/10 to-purple-500/10 border border-blue-500/20 rounded-lg">
           <h4 className="text-sm font-medium text-blue-300 mb-2">Τελευταία Επικοινωνία</h4>
-          <div className="flex items-center space-x-3">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
             {React.createElement(communicationIcons[lastCommunication.communication_type], { 
               className: "w-4 h-4 text-blue-400" 
             })}
@@ -137,7 +137,7 @@ export const CommunicationTimeline: React.FC<CommunicationTimelineProps> = ({
           <p className="text-slate-400 mb-4">Δεν υπάρχουν καταγεγραμμένες επικοινωνίες</p>
           <button
             onClick={() => setShowForm(true)}
-            className="text-blue-400 hover:text-blue-300 underline"
+            className="text-blue-400 hover:text-blue-300 underline touch-target"
           >
             Προσθέστε την πρώτη επικοινωνία
           </button>
@@ -155,17 +155,17 @@ export const CommunicationTimeline: React.FC<CommunicationTimelineProps> = ({
                   <div className="absolute left-6 top-12 w-0.5 h-full bg-slate-700 -z-10" />
                 )}
 
-                <div className="flex items-start space-x-4 group">
+                <div className="flex items-start space-x-3 sm:space-x-4 group">
                   {/* Timeline dot */}
-                  <div className="flex-shrink-0 w-12 h-12 bg-slate-700 border-2 border-slate-600 rounded-full flex items-center justify-center">
-                    <IconComponent className="w-5 h-5 text-blue-400" />
+                  <div className="flex-shrink-0 w-10 sm:w-12 h-10 sm:h-12 bg-slate-700 border-2 border-slate-600 rounded-full flex items-center justify-center">
+                    <IconComponent className="w-4 sm:w-5 h-4 sm:h-5 text-blue-400" />
                   </div>
 
                   {/* Content */}
-                  <div className="flex-1 bg-slate-700/30 hover:bg-slate-700/50 border border-slate-600 rounded-lg p-4 transition-colors">
-                    <div className="flex items-start justify-between">
+                  <div className="flex-1 bg-slate-700/30 hover:bg-slate-700/50 border border-slate-600 rounded-lg responsive-padding transition-colors">
+                    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between space-y-2 sm:space-y-0">
                       <div className="flex-1">
-                        <div className="flex items-center space-x-3 mb-2">
+                        <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-2">
                           <h4 className="font-medium text-white">
                             {communicationLabels[communication.communication_type]}
                           </h4>
@@ -184,16 +184,16 @@ export const CommunicationTimeline: React.FC<CommunicationTimelineProps> = ({
                       </div>
 
                       {/* Actions */}
-                      <div className="flex items-center space-x-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="flex items-center space-x-1 sm:space-x-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                         <button
                           onClick={() => handleEdit(communication)}
-                          className="p-2 text-slate-400 hover:text-blue-400 hover:bg-slate-600 rounded-lg transition-colors"
+                          className="touch-target text-slate-400 hover:text-blue-400 hover:bg-slate-600 rounded-lg transition-colors"
                         >
                           <Edit className="w-4 h-4" />
                         </button>
                         <button
                           onClick={() => handleDelete(communication)}
-                          className="p-2 text-slate-400 hover:text-red-400 hover:bg-slate-600 rounded-lg transition-colors"
+                          className="touch-target text-slate-400 hover:text-red-400 hover:bg-slate-600 rounded-lg transition-colors"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>

@@ -34,16 +34,25 @@ export class CitizensService extends BaseService {
 
   async getAllCitizens(): Promise<Citizen[]> {
     try {
+      console.log('🔍 CitizensService: Starting getAllCitizens...')
       const { data, error } = await supabase
         .from('citizens')
         .select('*')
         .order('created_at', { ascending: false })
 
-      if (error) this.handleError(error, 'φόρτωση πολιτών')
+      console.log('📊 Supabase response:', { data: data?.length, error })
       
+      if (error) {
+        console.error('❌ Supabase error:', error)
+        this.handleError(error, 'φόρτωση πολιτών')
+      }
+      
+      console.log('✅ Returning data:', data?.length || 0, 'citizens')
       return data || []
     } catch (error) {
+      console.error('❌ Service error:', error)
       this.handleError(error as Error, 'φόρτωση πολιτών')
+      return [] // This line will never be reached but TypeScript needs it
     }
   }
 
@@ -64,6 +73,7 @@ export class CitizensService extends BaseService {
       return data || null
     } catch (error) {
       this.handleError(error as Error, 'φόρτωση πολίτη')
+      return null
     }
   }
 
@@ -82,6 +92,7 @@ export class CitizensService extends BaseService {
       return data
     } catch (error) {
       this.handleError(error as Error, 'δημιουργία πολίτη')
+      throw error
     }
   }
 
@@ -101,6 +112,7 @@ export class CitizensService extends BaseService {
       return data
     } catch (error) {
       this.handleError(error as Error, 'ενημέρωση πολίτη')
+      throw error
     }
   }
 
@@ -116,6 +128,7 @@ export class CitizensService extends BaseService {
       if (error) this.handleError(error, 'διαγραφή πολίτη')
     } catch (error) {
       this.handleError(error as Error, 'διαγραφή πολίτη')
+      throw error
     }
   }
 
@@ -136,6 +149,7 @@ export class CitizensService extends BaseService {
       return data || []
     } catch (error) {
       this.handleError(error as Error, 'αναζήτηση πολιτών')
+      return []
     }
   }
 
@@ -152,6 +166,7 @@ export class CitizensService extends BaseService {
       return data || []
     } catch (error) {
       this.handleError(error as Error, 'φόρτωση πολιτών ανά δήμο')
+      return []
     }
   }
 

@@ -3,7 +3,7 @@ import { Shield, Plus, FileText, Clock, Star, TrendingUp, Calendar, Users, Edit,
 import { EssoAccordion } from '../components/military/EssoAccordion'
 import { MilitaryPersonnelForm } from '../components/forms/MilitaryPersonnelForm'
 import { MilitaryViewModal } from '../components/modals/MilitaryViewModal'
-import { useMilitaryStore } from '../stores/militaryStore'
+import { useMilitaryStore, useMilitaryActions } from '../stores/militaryStore'
 import type { MilitaryPersonnel as BaseMilitaryPersonnel } from '../stores/militaryStore'
 
 // Extended interface to include the additional fields needed by the view modal
@@ -30,13 +30,14 @@ interface MilitaryPersonnelFormData {
 
 export function MilitaryEsso() {
   const {
-    militaryPersonnel: baseMilitaryPersonnel,
-    addMilitaryPersonnel,
-    updateMilitaryPersonnel,
-    loadMilitaryPersonnel,
-    getStats,
+    items: baseMilitaryPersonnel,
+    addItem: addMilitaryPersonnel,
+    updateItem: updateMilitaryPersonnel,
+    loadItems: loadMilitaryPersonnel,
     isLoading
   } = useMilitaryStore()
+  
+  const { getStats } = useMilitaryActions()
 
   // Cast to extended interface
   const militaryPersonnel = baseMilitaryPersonnel as MilitaryPersonnel[]
@@ -71,7 +72,7 @@ export function MilitaryEsso() {
       }
     }
     loadData()
-  }, [loadMilitaryPersonnel, getStats, baseMilitaryPersonnel])
+  }, [])
 
   const handleSelectPersonnel = (personnel: MilitaryPersonnel) => {
     setSelectedPersonnel(personnel)
@@ -282,7 +283,7 @@ export function MilitaryEsso() {
             </div>
             <div className="space-y-3">
               {['2025', '2024', '2023'].map(year => {
-                const yearPersonnel = militaryPersonnel.filter(p => p.essoYear === year)
+                const yearPersonnel = militaryPersonnel?.filter(p => p.essoYear === year) || []
                 if (yearPersonnel.length === 0) return null
                 
                 return (
@@ -318,7 +319,7 @@ export function MilitaryEsso() {
               </h3>
             </div>
             <div className="space-y-3">
-              {militaryPersonnel
+              {(militaryPersonnel || [])
                 .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
                 .slice(0, 5)
                 .map(person => (
@@ -384,7 +385,7 @@ export function MilitaryEsso() {
               </button>
               <button 
                 onClick={() => {
-                  if (militaryPersonnel.length === 0) {
+                  if (!militaryPersonnel || militaryPersonnel.length === 0) {
                     alert('Δεν υπάρχουν δεδομένα για εξαγωγή')
                     return
                   }
@@ -416,7 +417,7 @@ export function MilitaryEsso() {
                   }
                   
                   // Create CSV rows with proper escaping
-                  const csvRows = militaryPersonnel.map((person, index) => {
+                  const csvRows = (militaryPersonnel || []).map((person, index) => {
                     return [
                       index + 1,
                       `"${(person.name || '').replace(/"/g, '""')}"`,
@@ -451,7 +452,7 @@ export function MilitaryEsso() {
                   document.body.removeChild(link)
                   URL.revokeObjectURL(url)
                   
-                  alert(`Εξήχθηκε επιτυχώς CSV αρχείο με ${militaryPersonnel.length} εγγραφές στρατιωτικού προσωπικού!\n\nΤο αρχείο θα ανοίξει απευθείας στο Excel με σωστά ελληνικά.`)
+                  alert(`Εξήχθηκε επιτυχώς CSV αρχείο με ${militaryPersonnel?.length || 0} εγγραφές στρατιωτικού προσωπικού!\n\nΤο αρχείο θα ανοίξει απευθείας στο Excel με σωστά ελληνικά.`)
                 }}
                 className="w-full bg-slate-700 hover:bg-slate-600 text-white p-3 rounded-lg transition-colors duration-200 flex items-center justify-center"
               >

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { FileText, Plus, Search, Edit, Eye, Trash2, Clock, CheckCircle, XCircle, AlertCircle, X, Star, TrendingUp } from 'lucide-react'
-import { useRequestStore } from '../stores/requestStore'
+import { useRequestStore, useRequestActions } from '../stores/requestStore'
 import { RequestForm } from '../components/forms/RequestForm'
 import { RequestViewModal } from '../components/modals/RequestViewModal'
 import type { Request } from '../stores/requestStore'
@@ -20,20 +20,23 @@ interface RequestFormData {
 
 export function Requests() {
   const {
-    requests,
+    items: requests,
     isLoading,
     error,
-    loadRequests,
-    addRequest,
-    updateRequest,
-    deleteRequest,
+    loadItems: loadRequests,
+    addItem: addRequest,
+    updateItem: updateRequest,
+    deleteItem: deleteRequest,
+    setError
+  } = useRequestStore()
+
+  const {
     searchRequests,
     filterByStatus,
     filterByPriority,
     getStats,
-    getDepartments,
-    setError
-  } = useRequestStore()
+    getDepartments
+  } = useRequestActions()
 
   const [searchTerm, setSearchTerm] = useState('')
   const [typeFilter, setTypeFilter] = useState<'' | 'citizen' | 'military'>('')
@@ -85,7 +88,7 @@ export function Requests() {
       }
     }
     loadData()
-  }, [loadRequests, getStats, getDepartments])
+  }, [])
 
   // Clear error after 5 seconds
   useEffect(() => {
@@ -95,8 +98,17 @@ export function Requests() {
     }
   }, [error, setError])
 
-  // Get filtered requests
-  let filteredRequests = searchRequests(searchTerm)
+  // Get filtered requests (local filtering instead of async search)
+  let filteredRequests = requests?.filter(request => {
+    if (!searchTerm.trim()) return true
+    const term = searchTerm.toLowerCase()
+    return (
+      request.title?.toLowerCase().includes(term) ||
+      request.description?.toLowerCase().includes(term) ||
+      request.category?.toLowerCase().includes(term) ||
+      request.department?.toLowerCase().includes(term)
+    )
+  }) || []
   
   if (typeFilter) {
     filteredRequests = filteredRequests.filter(request => {
@@ -314,15 +326,15 @@ export function Requests() {
   }
 
   return (
-    <div className="p-8">
+    <div className="responsive-padding py-4 sm:py-6 lg:py-8">
       {/* Error Alert */}
       {error && (
-        <div className="mb-6 bg-red-500/20 border border-red-500/30 text-red-400 px-4 py-3 rounded-lg flex items-center">
-          <AlertCircle className="h-5 w-5 mr-2" />
-          {error}
+        <div className="mb-4 sm:mb-6 bg-red-500/20 border border-red-500/30 text-red-400 px-4 py-3 rounded-lg flex items-center">
+          <AlertCircle className="h-5 w-5 mr-2 flex-shrink-0" />
+          <span className="flex-1 text-sm sm:text-base">{error}</span>
           <button 
             onClick={() => setError(null)}
-            className="ml-auto text-red-400 hover:text-red-300"
+            className="ml-2 text-red-400 hover:text-red-300 touch-target flex items-center justify-center"
           >
             <X className="h-4 w-4" />
           </button>
@@ -330,103 +342,103 @@ export function Requests() {
       )}
 
       {/* Header */}
-      <div className="mb-8">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h1 className="text-3xl font-bold text-white mb-2">
+      <div className="mb-6 sm:mb-8">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
+          <div className="min-w-0 flex-1">
+            <h1 className="text-2xl sm:text-3xl font-bold text-white mb-2 truncate">
               Διαχείριση Αιτημάτων
             </h1>
-            <p className="text-gray-400">
-              Παρακολούθηση και διαχείριση όλων των αιτημάτων πολιτών, στρατιωτικού προσωπικού και γενικών υποθέσεων
+            <p className="text-sm sm:text-base text-gray-400">
+              Παρακολούθηση και διαχείριση όλων των αιτημάτων πολιτών και στρατιωτικού προσωπικού
             </p>
           </div>
           <button 
             onClick={() => setShowAddModal(true)}
             disabled={isLoading}
-            className="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white px-6 py-3 rounded-lg flex items-center transition-colors duration-200"
+            className="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white px-4 sm:px-6 py-3 rounded-lg flex items-center justify-center transition-colors duration-200 touch-target font-medium w-full sm:w-auto"
           >
-            <Plus className="h-5 w-5 mr-2" />
-            Νέο Αίτημα
+            <Plus className="h-5 w-5 mr-2 flex-shrink-0" />
+            <span>Νέο Αίτημα</span>
           </button>
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-6 gap-4 mb-8">
-          <div className="bg-slate-800 border border-blue-500/30 rounded-xl p-6">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4 mb-6 sm:mb-8">
+          <div className="bg-slate-800 border border-blue-500/30 rounded-xl p-4 sm:p-6">
             <div className="flex items-center justify-between">
-              <div className="p-3 rounded-lg bg-blue-500/20">
-                <FileText className="h-6 w-6 text-blue-400" />
+              <div className="p-2 sm:p-3 rounded-lg bg-blue-500/20 flex-shrink-0">
+                <FileText className="h-4 w-4 sm:h-6 sm:w-6 text-blue-400" />
               </div>
-              <div className="text-right">
-                <div className="text-2xl font-bold text-white">
+              <div className="text-right min-w-0 flex-1 ml-2">
+                <div className="text-base sm:text-2xl font-bold text-white truncate">
                   {stats.total.toLocaleString('el-GR')}
                 </div>
-                <div className="text-sm text-gray-400">Σύνολο</div>
+                <div className="text-xs sm:text-sm text-gray-400 truncate">Σύνολο</div>
               </div>
             </div>
           </div>
-          <div className="bg-slate-800 border border-blue-500/30 rounded-xl p-6">
+          <div className="bg-slate-800 border border-blue-500/30 rounded-xl p-4 sm:p-6">
             <div className="flex items-center justify-between">
-              <div className="p-3 rounded-lg bg-blue-500/20">
-                <FileText className="h-6 w-6 text-blue-400" />
+              <div className="p-2 sm:p-3 rounded-lg bg-blue-500/20 flex-shrink-0">
+                <FileText className="h-4 w-4 sm:h-6 sm:w-6 text-blue-400" />
               </div>
-              <div className="text-right">
-                <div className="text-2xl font-bold text-white">
+              <div className="text-right min-w-0 flex-1 ml-2">
+                <div className="text-base sm:text-2xl font-bold text-white truncate">
                   {stats.submitted.toLocaleString('el-GR')}
                 </div>
-                <div className="text-sm text-gray-400">Υποβλήθηκαν</div>
+                <div className="text-xs sm:text-sm text-gray-400 truncate">Υποβλήθηκαν</div>
               </div>
             </div>
           </div>
-          <div className="bg-slate-800 border border-orange-500/30 rounded-xl p-6">
+          <div className="bg-slate-800 border border-orange-500/30 rounded-xl p-4 sm:p-6 col-span-2 sm:col-span-1">
             <div className="flex items-center justify-between">
-              <div className="p-3 rounded-lg bg-orange-500/20">
-                <Clock className="h-6 w-6 text-orange-400" />
+              <div className="p-2 sm:p-3 rounded-lg bg-orange-500/20 flex-shrink-0">
+                <Clock className="h-4 w-4 sm:h-6 sm:w-6 text-orange-400" />
               </div>
-              <div className="text-right">
-                <div className="text-2xl font-bold text-white">
+              <div className="text-right min-w-0 flex-1 ml-2">
+                <div className="text-base sm:text-2xl font-bold text-white truncate">
                   {stats.inProgress.toLocaleString('el-GR')}
                 </div>
-                <div className="text-sm text-gray-400">Σε Εξέλιξη</div>
+                <div className="text-xs sm:text-sm text-gray-400 truncate">Σε Εξέλιξη</div>
               </div>
             </div>
           </div>
-          <div className="bg-slate-800 border border-green-500/30 rounded-xl p-6">
+          <div className="bg-slate-800 border border-green-500/30 rounded-xl p-4 sm:p-6">
             <div className="flex items-center justify-between">
-              <div className="p-3 rounded-lg bg-green-500/20">
-                <Star className="h-6 w-6 text-green-400" />
+              <div className="p-2 sm:p-3 rounded-lg bg-green-500/20 flex-shrink-0">
+                <Star className="h-4 w-4 sm:h-6 sm:w-6 text-green-400" />
               </div>
-              <div className="text-right">
-                <div className="text-2xl font-bold text-white">
+              <div className="text-right min-w-0 flex-1 ml-2">
+                <div className="text-base sm:text-2xl font-bold text-white truncate">
                   {stats.approved.toLocaleString('el-GR')}
                 </div>
-                <div className="text-sm text-gray-400">Εγκρίθηκαν</div>
+                <div className="text-xs sm:text-sm text-gray-400 truncate">Εγκρίθηκαν</div>
               </div>
             </div>
           </div>
-          <div className="bg-slate-800 border border-emerald-500/30 rounded-xl p-6">
+          <div className="bg-slate-800 border border-emerald-500/30 rounded-xl p-4 sm:p-6">
             <div className="flex items-center justify-between">
-              <div className="p-3 rounded-lg bg-emerald-500/20">
-                <CheckCircle className="h-6 w-6 text-emerald-400" />
+              <div className="p-2 sm:p-3 rounded-lg bg-emerald-500/20 flex-shrink-0">
+                <CheckCircle className="h-4 w-4 sm:h-6 sm:w-6 text-emerald-400" />
               </div>
-              <div className="text-right">
-                <div className="text-2xl font-bold text-white">
+              <div className="text-right min-w-0 flex-1 ml-2">
+                <div className="text-base sm:text-2xl font-bold text-white truncate">
                   {stats.completed.toLocaleString('el-GR')}
                 </div>
-                <div className="text-sm text-gray-400">Ολοκληρώθηκαν</div>
+                <div className="text-xs sm:text-sm text-gray-400 truncate">Ολοκληρώθηκαν</div>
               </div>
             </div>
           </div>
-          <div className="bg-slate-800 border border-yellow-500/30 rounded-xl p-6">
+          <div className="bg-slate-800 border border-yellow-500/30 rounded-xl p-4 sm:p-6">
             <div className="flex items-center justify-between">
-              <div className="p-3 rounded-lg bg-yellow-500/20">
-                <TrendingUp className="h-6 w-6 text-yellow-400" />
+              <div className="p-2 sm:p-3 rounded-lg bg-yellow-500/20 flex-shrink-0">
+                <TrendingUp className="h-4 w-4 sm:h-6 sm:w-6 text-yellow-400" />
               </div>
-              <div className="text-right">
-                <div className="text-2xl font-bold text-white">
+              <div className="text-right min-w-0 flex-1 ml-2">
+                <div className="text-base sm:text-2xl font-bold text-white truncate">
                   {'N/A'}
                 </div>
-                <div className="text-sm text-gray-400">Μέσος Χρόνος (ημέρες)</div>
+                <div className="text-xs sm:text-sm text-gray-400 truncate">Μέσος Χρόνος</div>
               </div>
             </div>
           </div>
@@ -434,176 +446,276 @@ export function Requests() {
       </div>
 
       {/* Search and Filters */}
-      <div className="bg-slate-800 border border-slate-700 rounded-xl p-6 mb-8">
-        <div className="flex flex-col md:flex-row gap-4">
-          <div className="flex-1 relative">
+      <div className="bg-slate-800 border border-slate-700 rounded-xl p-4 sm:p-6 mb-6 sm:mb-8">
+        <div className="flex flex-col gap-4">
+          <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
             <input
               type="text"
-              placeholder="Αναζήτηση (τίτλος, περιγραφή, αιτών, email, κατηγορία, τμήμα)..."
+              placeholder="Αναζήτηση αιτημάτων..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full bg-slate-700 border border-slate-600 text-white rounded-lg pl-10 pr-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="w-full bg-slate-700 border border-slate-600 text-white rounded-lg pl-10 pr-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             />
           </div>
-          <select 
-            value={typeFilter}
-            onChange={(e) => setTypeFilter(e.target.value as '' | 'citizen' | 'military')}
-            className="bg-slate-700 border border-slate-600 text-white rounded-lg px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-          >
-            <option value="">Όλοι οι τύποι</option>
-            <option value="citizen">Πολιτικό</option>
-            <option value="military">Στρατιωτικό</option>
-          </select>
-          <select 
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value as '' | 'submitted' | 'in_progress' | 'pending_review' | 'approved' | 'rejected' | 'completed')}
-            className="bg-slate-700 border border-slate-600 text-white rounded-lg px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-          >
-            <option value="">Όλες οι καταστάσεις</option>
-            <option value="submitted">Υποβλήθηκε</option>
-            <option value="in_progress">Σε Εξέλιξη</option>
-            <option value="pending_review">Εκκρεμεί Έλεγχος</option>
-            <option value="approved">Εγκρίθηκε</option>
-            <option value="rejected">Απορρίφθηκε</option>
-            <option value="completed">Ολοκληρώθηκε</option>
-          </select>
-          <select 
-            value={priorityFilter}
-            onChange={(e) => setPriorityFilter(e.target.value as '' | 'low' | 'medium' | 'high' | 'urgent')}
-            className="bg-slate-700 border border-slate-600 text-white rounded-lg px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-          >
-            <option value="">Όλες οι προτεραιότητες</option>
-            <option value="low">Χαμηλή</option>
-            <option value="medium">Μέση</option>
-            <option value="high">Υψηλή</option>
-            <option value="urgent">Επείγουσα</option>
-          </select>
-          <select 
-            value={departmentFilter}
-            onChange={(e) => setDepartmentFilter(e.target.value)}
-            className="bg-slate-700 border border-slate-600 text-white rounded-lg px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-          >
-            <option value="">Όλα τα τμήματα</option>
-            {departments.map(dept => (
-              <option key={dept} value={dept}>{dept}</option>
-            ))}
-          </select>
+          <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+            <select 
+              value={typeFilter}
+              onChange={(e) => setTypeFilter(e.target.value as '' | 'citizen' | 'military')}
+              className="bg-slate-700 border border-slate-600 text-white rounded-lg px-3 py-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            >
+              <option value="">Όλοι οι τύποι</option>
+              <option value="citizen">Πολιτικό</option>
+              <option value="military">Στρατιωτικό</option>
+            </select>
+            <select 
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value as '' | 'submitted' | 'in_progress' | 'pending_review' | 'approved' | 'rejected' | 'completed')}
+              className="bg-slate-700 border border-slate-600 text-white rounded-lg px-3 py-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            >
+              <option value="">Καταστάσεις</option>
+              <option value="submitted">Υποβλήθηκε</option>
+              <option value="in_progress">Σε Εξέλιξη</option>
+              <option value="pending_review">Εκκρεμεί Έλεγχος</option>
+              <option value="approved">Εγκρίθηκε</option>
+              <option value="rejected">Απορρίφθηκε</option>
+              <option value="completed">Ολοκληρώθηκε</option>
+            </select>
+            <select 
+              value={priorityFilter}
+              onChange={(e) => setPriorityFilter(e.target.value as '' | 'low' | 'medium' | 'high' | 'urgent')}
+              className="bg-slate-700 border border-slate-600 text-white rounded-lg px-3 py-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            >
+              <option value="">Προτεραιότητες</option>
+              <option value="low">Χαμηλή</option>
+              <option value="medium">Μέση</option>
+              <option value="high">Υψηλή</option>
+              <option value="urgent">Επείγουσα</option>
+            </select>
+            <select 
+              value={departmentFilter}
+              onChange={(e) => setDepartmentFilter(e.target.value)}
+              className="bg-slate-700 border border-slate-600 text-white rounded-lg px-3 py-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 xs:col-span-2 sm:col-span-1"
+            >
+              <option value="">Τμήματα</option>
+              {departments.map(dept => (
+                <option key={dept} value={dept}>{dept}</option>
+              ))}
+            </select>
+            <button
+              onClick={() => {
+                setSearchTerm('')
+                setTypeFilter('')
+                setStatusFilter('')
+                setPriorityFilter('')
+                setDepartmentFilter('')
+              }}
+              className="bg-slate-600 hover:bg-slate-500 text-white px-4 py-3 rounded-lg transition-colors duration-200 touch-target font-medium text-sm xs:col-span-2 sm:col-span-3 lg:col-span-1"
+            >
+              Καθαρισμός
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Requests Table */}
-      <div className="bg-slate-800 border border-slate-700 rounded-xl overflow-hidden">
-        <div className="p-6 border-b border-slate-700">
-          <h2 className="text-xl font-semibold text-white">
-            Λίστα Αιτημάτων ({filteredRequests.length})
-            {isLoading && (
-              <span className="ml-3 inline-flex items-center">
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
-                <span className="ml-2 text-sm text-gray-400">Φόρτωση...</span>
-              </span>
-            )}
-          </h2>
-        </div>
-        
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="bg-slate-700/50">
-                <th className="text-left py-4 px-6 text-gray-300 font-medium">Τίτλος</th>
-                <th className="text-left py-4 px-6 text-gray-300 font-medium">Τύπος</th>
-                <th className="text-left py-4 px-6 text-gray-300 font-medium">Αιτών</th>
-                <th className="text-left py-4 px-6 text-gray-300 font-medium">Κατηγορία</th>
-                <th className="text-left py-4 px-6 text-gray-300 font-medium">Κατάσταση</th>
-                <th className="text-left py-4 px-6 text-gray-300 font-medium">Προτεραιότητα</th>
-                <th className="text-left py-4 px-6 text-gray-300 font-medium">Τμήμα</th>
-                <th className="text-left py-4 px-6 text-gray-300 font-medium">Ημερομηνία</th>
-                <th className="text-left py-4 px-6 text-gray-300 font-medium">Ενέργειες</th>
+      {/* Requests List Header */}
+      <div className="bg-slate-800 border border-slate-700 rounded-t-xl px-4 sm:px-6 py-4 border-b">
+        <h2 className="text-lg sm:text-xl font-semibold text-white flex items-center">
+          Λίστα Αιτημάτων ({filteredRequests.length})
+          {isLoading && (
+            <span className="ml-3 inline-flex items-center">
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
+              <span className="ml-2 text-sm text-gray-400">Φόρτωση...</span>
+            </span>
+          )}
+        </h2>
+      </div>
+
+      {/* Desktop Table View */}
+      <div className="mobile-table-hidden bg-slate-800 border-x border-b border-slate-700 rounded-b-xl overflow-x-auto">
+        <table className="w-full">
+          <thead>
+            <tr className="bg-slate-700/50">
+              <th className="text-left py-4 px-6 text-gray-300 font-medium">Τίτλος</th>
+              <th className="text-left py-4 px-6 text-gray-300 font-medium">Τύπος</th>
+              <th className="text-left py-4 px-6 text-gray-300 font-medium">Αιτών</th>
+              <th className="text-left py-4 px-6 text-gray-300 font-medium">Κατάσταση</th>
+              <th className="text-left py-4 px-6 text-gray-300 font-medium">Προτεραιότητα</th>
+              <th className="text-left py-4 px-6 text-gray-300 font-medium">Ημερομηνία</th>
+              <th className="text-left py-4 px-6 text-gray-300 font-medium">Ενέργειες</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filteredRequests.length === 0 ? (
+              <tr>
+                <td colSpan={7} className="text-center py-12 text-gray-400">
+                  <FileText className="h-12 w-12 mx-auto mb-4 text-gray-500" />
+                  {searchTerm || typeFilter || statusFilter || priorityFilter || departmentFilter ? 'Δεν βρέθηκαν αιτήματα με αυτά τα κριτήρια' : 'Δεν υπάρχουν καταχωρημένα αιτήματα'}
+                </td>
               </tr>
-            </thead>
-            <tbody>
-              {filteredRequests.length === 0 ? (
-                <tr>
-                  <td colSpan={9} className="text-center py-12 text-gray-400">
-                    <FileText className="h-12 w-12 mx-auto mb-4 text-gray-500" />
-                    {searchTerm || typeFilter || statusFilter || priorityFilter || departmentFilter ? 'Δεν βρέθηκαν αιτήματα με αυτά τα κριτήρια' : 'Δεν υπάρχουν καταχωρημένα αιτήματα'}
-                  </td>
-                </tr>
-              ) : (
-                filteredRequests.map((request) => {
-                  const StatusIcon = getStatusIcon(request.status)
-                  return (
-                    <tr key={request.id} className="border-b border-slate-700 hover:bg-slate-700/30 transition-colors">
-                      <td className="py-4 px-6">
-                        <div className="text-white font-medium truncate max-w-xs" title={request.title}>
-                          {request.title}
-                        </div>
-                      </td>
-                      <td className="py-4 px-6">
-                        <span className="text-gray-300 text-sm">
-                          {getTypeText(request.citizenId ? 'citizen' : 'military')}
-                        </span>
-                      </td>
-                      <td className="py-4 px-6">
-                        <div className="text-white font-medium">
-                          {request.citizenName || 'Μη διαθέσιμο'}
-                        </div>
-                      </td>
-                      <td className="py-4 px-6 text-gray-300 text-sm">-</td>
-                      <td className="py-4 px-6">
-                        <span className={`px-3 py-1 rounded-full text-xs font-medium border flex items-center gap-1 w-fit ${getStatusColor(request.status)}`}>
-                          <StatusIcon className="h-3 w-3" />
-                          {getStatusText(request.status)}
-                        </span>
-                      </td>
-                      <td className="py-4 px-6">
-                        <span className={`px-3 py-1 rounded-full text-xs font-medium border ${getPriorityColor(request.priority)}`}>
-                          {getPriorityText(request.priority)}
-                        </span>
-                      </td>
-                      <td className="py-4 px-6 text-gray-300 text-sm">-</td>
-                      <td className="py-4 px-6 text-gray-300 text-sm">
-                        {new Date(request.created_at).toLocaleDateString('el-GR')}
-                      </td>
-                      <td className="py-4 px-6">
-                        <div className="flex items-center space-x-2">
-                          <button 
-                            onClick={() => handleViewRequest(request)}
-                            className="text-blue-400 hover:text-blue-300 p-1"
-                            title="Προβολή"
-                          >
-                            <Eye className="h-4 w-4" />
-                          </button>
-                          <button 
-                            onClick={() => {
-                              setSelectedRequest(request)
-                              setShowEditModal(true)
-                            }}
-                            className="text-green-400 hover:text-green-300 p-1"
-                            title="Επεξεργασία"
-                          >
-                            <Edit className="h-4 w-4" />
-                          </button>
-                          <button 
-                            onClick={() => handleDeleteRequest(request.id)}
-                            className={`p-1 transition-colors ${
-                              deleteConfirm === request.id
-                                ? 'text-red-300 bg-red-500/20 rounded'
-                                : 'text-red-400 hover:text-red-300'
-                            }`}
-                            title={deleteConfirm === request.id ? 'Κάντε κλικ για επιβεβαίωση' : 'Διαγραφή'}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  )
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
+            ) : (
+              filteredRequests.map((request) => {
+                const StatusIcon = getStatusIcon(request.status)
+                return (
+                  <tr key={request.id} className="border-b border-slate-700 hover:bg-slate-700/30 transition-colors">
+                    <td className="py-4 px-6">
+                      <div className="text-white font-medium truncate max-w-xs" title={request.title}>
+                        {request.title}
+                      </div>
+                    </td>
+                    <td className="py-4 px-6">
+                      <span className="text-gray-300 text-sm">
+                        {getTypeText(request.citizenId ? 'citizen' : 'military')}
+                      </span>
+                    </td>
+                    <td className="py-4 px-6">
+                      <div className="text-white font-medium">
+                        {request.citizenName || 'Μη διαθέσιμο'}
+                      </div>
+                    </td>
+                    <td className="py-4 px-6">
+                      <span className={`px-3 py-1 rounded-full text-xs font-medium border flex items-center gap-1 w-fit ${getStatusColor(request.status)}`}>
+                        <StatusIcon className="h-3 w-3" />
+                        {getStatusText(request.status)}
+                      </span>
+                    </td>
+                    <td className="py-4 px-6">
+                      <span className={`px-3 py-1 rounded-full text-xs font-medium border ${getPriorityColor(request.priority)}`}>
+                        {getPriorityText(request.priority)}
+                      </span>
+                    </td>
+                    <td className="py-4 px-6 text-gray-300 text-sm">
+                      {new Date(request.created_at).toLocaleDateString('el-GR')}
+                    </td>
+                    <td className="py-4 px-6">
+                      <div className="flex items-center space-x-2">
+                        <button 
+                          onClick={() => handleViewRequest(request)}
+                          className="text-blue-400 hover:text-blue-300 p-1 touch-target"
+                          title="Προβολή"
+                        >
+                          <Eye className="h-4 w-4" />
+                        </button>
+                        <button 
+                          onClick={() => {
+                            setSelectedRequest(request)
+                            setShowEditModal(true)
+                          }}
+                          className="text-green-400 hover:text-green-300 p-1 touch-target"
+                          title="Επεξεργασία"
+                        >
+                          <Edit className="h-4 w-4" />
+                        </button>
+                        <button 
+                          onClick={() => handleDeleteRequest(request.id)}
+                          className={`p-1 transition-colors touch-target ${
+                            deleteConfirm === request.id
+                              ? 'text-red-300 bg-red-500/20 rounded'
+                              : 'text-red-400 hover:text-red-300'
+                          }`}
+                          title={deleteConfirm === request.id ? 'Κάντε κλικ για επιβεβαίωση' : 'Διαγραφή'}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Mobile Card View */}
+      <div className="mobile-card-only space-y-4 bg-slate-800 border-x border-b border-slate-700 rounded-b-xl p-4">
+        {filteredRequests.length === 0 ? (
+          <div className="text-center py-12 text-gray-400">
+            <FileText className="h-12 w-12 mx-auto mb-4 text-gray-500" />
+            <p className="text-sm">
+              {searchTerm || typeFilter || statusFilter || priorityFilter || departmentFilter ? 'Δεν βρέθηκαν αιτήματα με αυτά τα κριτήρια' : 'Δεν υπάρχουν καταχωρημένα αιτήματα'}
+            </p>
+          </div>
+        ) : (
+          filteredRequests.map((request) => {
+            const StatusIcon = getStatusIcon(request.status)
+            return (
+              <div key={request.id} className="bg-slate-700/50 rounded-lg p-4 border border-slate-600">
+                {/* Header */}
+                <div className="flex items-start justify-between mb-3">
+                  <div className="min-w-0 flex-1">
+                    <h3 className="text-white font-semibold text-base truncate" title={request.title}>
+                      {request.title}
+                    </h3>
+                    <p className="text-gray-400 text-sm">{getTypeText(request.citizenId ? 'citizen' : 'military')}</p>
+                  </div>
+                  <div className="flex flex-col items-end space-y-1 flex-shrink-0 ml-2">
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium border flex items-center gap-1 ${getStatusColor(request.status)}`}>
+                      <StatusIcon className="h-3 w-3" />
+                      {getStatusText(request.status)}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Details */}
+                <div className="space-y-2 mb-4">
+                  <div className="flex items-center justify-between text-sm">
+                    <div className="flex items-center">
+                      <Clock className="h-4 w-4 text-gray-400 mr-2 flex-shrink-0" />
+                      <span className="text-gray-300">{new Date(request.created_at).toLocaleDateString('el-GR')}</span>
+                    </div>
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium border ${getPriorityColor(request.priority)}`}>
+                      {getPriorityText(request.priority)}
+                    </span>
+                  </div>
+                  {request.citizenName && (
+                    <div className="flex items-center text-sm">
+                      <FileText className="h-4 w-4 text-gray-400 mr-2 flex-shrink-0" />
+                      <span className="text-gray-300 truncate">{request.citizenName}</span>
+                    </div>
+                  )}
+                  {request.description && (
+                    <div className="text-sm text-gray-300 bg-slate-800/50 rounded p-2 mt-2">
+                      <p className="line-clamp-2">{request.description}</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Actions */}
+                <div className="flex items-center justify-end space-x-2">
+                  <button 
+                    onClick={() => handleViewRequest(request)}
+                    className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg text-sm font-medium transition-colors touch-target flex items-center"
+                  >
+                    <Eye className="h-4 w-4 mr-1" />
+                    Προβολή
+                  </button>
+                  <button 
+                    onClick={() => {
+                      setSelectedRequest(request)
+                      setShowEditModal(true)
+                    }}
+                    className="bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-lg text-sm font-medium transition-colors touch-target flex items-center"
+                  >
+                    <Edit className="h-4 w-4 mr-1" />
+                    Επεξεργασία
+                  </button>
+                  <button 
+                    onClick={() => handleDeleteRequest(request.id)}
+                    className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors touch-target flex items-center ${
+                      deleteConfirm === request.id
+                        ? 'bg-red-600 hover:bg-red-700 text-white'
+                        : 'bg-red-500/20 hover:bg-red-500/30 text-red-400'
+                    }`}
+                  >
+                    <Trash2 className="h-4 w-4 mr-1" />
+                    {deleteConfirm === request.id ? 'Επιβεβαίωση' : 'Διαγραφή'}
+                  </button>
+                </div>
+              </div>
+            )
+          })
+        )}
       </div>
 
       {/* Modals */}

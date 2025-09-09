@@ -102,7 +102,7 @@ export function RequestForm({ isOpen = true, onClose, onSubmit, initialData, mod
       loadCitizens()
       loadMilitaryPersonnel()
     }
-  }, [isOpen, loadCitizens, loadMilitaryPersonnel])
+  }, [isOpen])
 
   const getCategoriesByType = (type: string) => {
     switch (type) {
