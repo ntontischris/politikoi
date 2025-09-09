@@ -1,10 +1,17 @@
-import { useState } from 'react'
-import { Shield, Plus, FileText, Clock, Star, TrendingUp, Calendar, Users } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Shield, Plus, FileText, Clock, Star, TrendingUp, Calendar, Users, Edit, Eye } from 'lucide-react'
 import { EssoAccordion } from '../components/military/EssoAccordion'
 import { MilitaryPersonnelForm } from '../components/forms/MilitaryPersonnelForm'
 import { MilitaryViewModal } from '../components/modals/MilitaryViewModal'
 import { useMilitaryStore } from '../stores/militaryStore'
-import type { MilitaryPersonnel } from '../stores/militaryStore'
+import type { MilitaryPersonnel as BaseMilitaryPersonnel } from '../stores/militaryStore'
+
+// Extended interface to include the additional fields needed by the view modal
+interface MilitaryPersonnel extends BaseMilitaryPersonnel {
+  description?: string
+  sendDate?: string
+  notes?: string
+}
 
 interface MilitaryPersonnelFormData {
   name: string
@@ -23,18 +30,48 @@ interface MilitaryPersonnelFormData {
 
 export function MilitaryEsso() {
   const {
-    militaryPersonnel,
+    militaryPersonnel: baseMilitaryPersonnel,
     addMilitaryPersonnel,
     updateMilitaryPersonnel,
-    getStats
+    loadMilitaryPersonnel,
+    getStats,
+    isLoading
   } = useMilitaryStore()
+
+  // Cast to extended interface
+  const militaryPersonnel = baseMilitaryPersonnel as MilitaryPersonnel[]
 
   const [showAddModal, setShowAddModal] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
   const [showViewModal, setShowViewModal] = useState(false)
   const [selectedPersonnel, setSelectedPersonnel] = useState<MilitaryPersonnel | null>(null)
+  const [stats, setStats] = useState({
+    total: 0,
+    pending: 0,
+    approved: 0,
+    rejected: 0,
+    completed: 0,
+    essoCount: 0
+  })
 
-  const stats = getStats()
+  // Load data and stats on component mount
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        console.log('Loading military personnel data...')
+        await loadMilitaryPersonnel()
+        console.log('Military personnel loaded:', baseMilitaryPersonnel.slice(0, 1))
+        const statsData = await getStats()
+        setStats({
+          ...statsData,
+          essoCount: Object.keys(statsData.by_year || {}).length
+        })
+      } catch (error) {
+        console.error('Error loading military data:', error)
+      }
+    }
+    loadData()
+  }, [loadMilitaryPersonnel, getStats, baseMilitaryPersonnel])
 
   const handleSelectPersonnel = (personnel: MilitaryPersonnel) => {
     setSelectedPersonnel(personnel)
@@ -48,40 +85,70 @@ export function MilitaryEsso() {
         status: 'pending' as const
       })
       setShowAddModal(false)
+      // Refresh stats after adding
+      const statsData = await getStats()
+      setStats({
+        ...statsData,
+        essoCount: Object.keys(statsData.by_year || {}).length
+      })
     } catch (error) {
       console.error('Error adding personnel:', error)
     }
   }
 
   const handleEditPersonnel = async (formData: MilitaryPersonnelFormData) => {
-    if (!selectedPersonnel) return
+    if (!selectedPersonnel) {
+      console.error('No selectedPersonnel found')
+      alert('Σφάλμα: Δεν βρέθηκε επιλεγμένο προσωπικό')
+      return
+    }
     
     try {
+      console.log('Updating personnel with ID:', selectedPersonnel.id)
+      console.log('Form data:', formData)
+      
       await updateMilitaryPersonnel(selectedPersonnel.id, formData)
+      
+      console.log('Personnel updated successfully')
+      alert('Η ενημέρωση ολοκληρώθηκε επιτυχώς!')
+      
       setShowEditModal(false)
       setSelectedPersonnel(null)
+      
+      // Refresh stats after updating
+      const statsData = await getStats()
+      setStats({
+        ...statsData,
+        essoCount: Object.keys(statsData.by_year || {}).length
+      })
     } catch (error) {
       console.error('Error updating personnel:', error)
+      alert(`Σφάλμα κατά την ενημέρωση: ${error instanceof Error ? error.message : 'Άγνωστο σφάλμα'}`)
+      throw error // Re-throw to ensure form handles the error properly
     }
   }
 
   const handleEditFromView = (personnel: MilitaryPersonnel) => {
+    console.log('Editing from view modal:', personnel)
+    console.log('Has description:', personnel.description)
+    console.log('Has sendDate:', personnel.sendDate) 
+    console.log('Has notes:', personnel.notes)
     setSelectedPersonnel(personnel)
     setShowEditModal(true)
     setShowViewModal(false)
   }
 
   const convertPersonnelToFormData = (personnel: MilitaryPersonnel): MilitaryPersonnelFormData => ({
-    name: personnel.name,
-    surname: personnel.surname,
-    rank: personnel.rank,
-    unit: personnel.unit,
-    militaryId: personnel.militaryId,
-    esso: personnel.esso,
-    essoYear: personnel.essoYear,
-    essoLetter: personnel.essoLetter,
-    requestType: personnel.requestType,
-    description: personnel.description,
+    name: personnel.name || '',
+    surname: personnel.surname || '',
+    rank: personnel.rank || '',
+    unit: personnel.unit || '',
+    militaryId: personnel.militaryId || '',
+    esso: personnel.esso || '',
+    essoYear: personnel.essoYear || '',
+    essoLetter: personnel.essoLetter || '',
+    requestType: personnel.requestType || '',
+    description: personnel.description || personnel.requestType || '',
     sendDate: personnel.sendDate || '',
     notes: personnel.notes || ''
   })
@@ -257,16 +324,38 @@ export function MilitaryEsso() {
                 .map(person => (
                   <div
                     key={person.id}
-                    onClick={() => handleSelectPersonnel(person)}
-                    className="p-3 bg-slate-700/30 border border-slate-600 rounded-lg hover:bg-slate-700/50 cursor-pointer transition-colors"
+                    className="p-3 bg-slate-700/30 border border-slate-600 rounded-lg hover:bg-slate-700/50 transition-colors"
                   >
                     <div className="flex items-center justify-between mb-1">
                       <span className="text-white font-medium text-sm">
                         {person.rank} {person.surname}
                       </span>
-                      <span className="text-blue-400 text-xs">
-                        {person.esso}
-                      </span>
+                      <div className="flex items-center space-x-2">
+                        <span className="text-blue-400 text-xs">
+                          {person.esso}
+                        </span>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setSelectedPersonnel(person)
+                            setShowEditModal(true)
+                          }}
+                          className="text-green-400 hover:text-green-300 p-1 hover:bg-green-500/20 rounded transition-colors"
+                          title="Επεξεργασία"
+                        >
+                          <Edit className="h-3 w-3" />
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleSelectPersonnel(person)
+                          }}
+                          className="text-blue-400 hover:text-blue-300 p-1 hover:bg-blue-500/20 rounded transition-colors"
+                          title="Προβολή"
+                        >
+                          <Eye className="h-3 w-3" />
+                        </button>
+                      </div>
                     </div>
                     <div className="text-gray-400 text-xs">
                       {person.requestType}
@@ -293,11 +382,101 @@ export function MilitaryEsso() {
                 <Plus className="h-4 w-4 mr-2" />
                 Νέα Καταχώρηση
               </button>
-              <button className="w-full bg-slate-700 hover:bg-slate-600 text-white p-3 rounded-lg transition-colors duration-200 flex items-center justify-center">
+              <button 
+                onClick={() => {
+                  if (militaryPersonnel.length === 0) {
+                    alert('Δεν υπάρχουν δεδομένα για εξαγωγή')
+                    return
+                  }
+                  
+                  // Create proper CSV that opens directly in Excel with Greek characters
+                  const headers = [
+                    'Α/Α',
+                    'Όνομα',
+                    'Επώνυμο',
+                    'Βαθμός',
+                    'Μονάδα',
+                    'Στρατιωτικός Αριθμός',
+                    'ΕΣΣΟ',
+                    'Έτος ΕΣΣΟ',
+                    'Γράμμα ΕΣΣΟ',
+                    'Τύπος Αιτήματος',
+                    'Κατάσταση',
+                    'Ημερομηνία Δημιουργίας'
+                  ]
+                  
+                  const getStatusInGreek = (status: string) => {
+                    switch(status) {
+                      case 'pending': return 'Εκκρεμές'
+                      case 'approved': return 'Εγκρίθηκε'
+                      case 'completed': return 'Ολοκληρωμένο'
+                      case 'rejected': return 'Απορρίφθηκε'
+                      default: return status || ''
+                    }
+                  }
+                  
+                  // Create CSV rows with proper escaping
+                  const csvRows = militaryPersonnel.map((person, index) => {
+                    return [
+                      index + 1,
+                      `"${(person.name || '').replace(/"/g, '""')}"`,
+                      `"${(person.surname || '').replace(/"/g, '""')}"`,
+                      `"${(person.rank || '').replace(/"/g, '""')}"`,
+                      `"${(person.unit || '').replace(/"/g, '""')}"`,
+                      `"${(person.militaryId || '').replace(/"/g, '""')}"`,
+                      `"${(person.esso || '').replace(/"/g, '""')}"`,
+                      `"${(person.essoYear || '').replace(/"/g, '""')}"`,
+                      `"${(person.essoLetter || '').replace(/"/g, '""')}"`,
+                      `"${(person.requestType || '').replace(/"/g, '""')}"`,
+                      `"${getStatusInGreek(person.status).replace(/"/g, '""')}"`,
+                      `"${new Date(person.created_at).toLocaleDateString('el-GR')}"`
+                    ].join(';') // Use semicolon for European CSV format
+                  })
+                  
+                  // Create CSV content with BOM for proper Greek display
+                  const BOM = '\uFEFF'
+                  const csvContent = BOM + headers.map(h => `"${h}"`).join(';') + '\r\n' + csvRows.join('\r\n')
+                  
+                  const blob = new Blob([csvContent], { 
+                    type: 'text/csv;charset=utf-8;' 
+                  })
+                  
+                  const link = document.createElement('a')
+                  const url = URL.createObjectURL(blob)
+                  link.setAttribute('href', url)
+                  link.setAttribute('download', `Στρατιωτικό_Προσωπικό_ΕΣΣΟ_${new Date().toISOString().split('T')[0]}.csv`)
+                  link.style.visibility = 'hidden'
+                  document.body.appendChild(link)
+                  link.click()
+                  document.body.removeChild(link)
+                  URL.revokeObjectURL(url)
+                  
+                  alert(`Εξήχθηκε επιτυχώς CSV αρχείο με ${militaryPersonnel.length} εγγραφές στρατιωτικού προσωπικού!\n\nΤο αρχείο θα ανοίξει απευθείας στο Excel με σωστά ελληνικά.`)
+                }}
+                className="w-full bg-slate-700 hover:bg-slate-600 text-white p-3 rounded-lg transition-colors duration-200 flex items-center justify-center"
+              >
                 <FileText className="h-4 w-4 mr-2" />
                 Εξαγωγή Λίστας
               </button>
-              <button className="w-full bg-slate-700 hover:bg-slate-600 text-white p-3 rounded-lg transition-colors duration-200 flex items-center justify-center">
+              <button 
+                onClick={() => {
+                  // Show detailed statistics in console or alert
+                  const detailedStats = {
+                    'Σύνολο': stats.total,
+                    'Εκκρεμή': stats.pending,
+                    'Εγκρίθηκαν': stats.approved,
+                    'Ολοκληρωμένα': stats.completed,
+                    'Απορρίφθηκαν': stats.rejected,
+                    'Αριθμός ΕΣΣΟ': stats.essoCount
+                  }
+                  
+                  alert('Στατιστικά ΕΣΣΟ:\n\n' + 
+                    Object.entries(detailedStats)
+                      .map(([key, value]) => `${key}: ${value}`)
+                      .join('\n'))
+                }}
+                className="w-full bg-slate-700 hover:bg-slate-600 text-white p-3 rounded-lg transition-colors duration-200 flex items-center justify-center"
+              >
                 <TrendingUp className="h-4 w-4 mr-2" />
                 Στατιστικά ΕΣΣΟ
               </button>

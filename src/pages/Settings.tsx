@@ -1,7 +1,10 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { Navigate } from 'react-router-dom'
 import { Settings as SettingsIcon, User, Bell, Shield, Database, Globe, Save, Eye, EyeOff } from 'lucide-react'
+import { useAuthStore } from '../stores/authStore'
 
 export function Settings() {
+  const { isAdmin, profile, loading } = useAuthStore()
   const [activeTab, setActiveTab] = useState('profile')
   const [showPassword, setShowPassword] = useState(false)
   const [notifications, setNotifications] = useState({
@@ -10,6 +13,22 @@ export function Settings() {
     sms: false,
     reports: true
   })
+
+  // Redirect admins to AdminSettings
+  if (!loading && isAdmin()) {
+    return <Navigate to="/admin-settings" replace />
+  }
+
+  // Show loading while checking auth
+  if (loading || !profile) {
+    return (
+      <div className="p-8">
+        <div className="flex items-center justify-center py-12">
+          <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+        </div>
+      </div>
+    )
+  }
 
   const tabs = [
     { id: 'profile', name: 'Προφίλ', icon: User },

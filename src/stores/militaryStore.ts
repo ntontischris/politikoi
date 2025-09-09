@@ -51,7 +51,7 @@ interface MilitaryStore {
 }
 
 // Helper function to transform database military personnel to frontend
-const transformDBMilitaryPersonnel = (dbPersonnel: DBMilitaryPersonnel): MilitaryPersonnel => ({
+const transformDBMilitaryPersonnel = (dbPersonnel: DBMilitaryPersonnel): MilitaryPersonnel & { description?: string; sendDate?: string; notes?: string } => ({
   id: dbPersonnel.id,
   name: dbPersonnel.name,
   surname: dbPersonnel.surname,
@@ -62,13 +62,16 @@ const transformDBMilitaryPersonnel = (dbPersonnel: DBMilitaryPersonnel): Militar
   essoYear: dbPersonnel.esso_year || '',
   essoLetter: dbPersonnel.esso_letter || '',
   requestType: dbPersonnel.wish || '',
+  description: dbPersonnel.wish || '', // Map wish to both requestType and description for backward compatibility
+  sendDate: dbPersonnel.send_date || '',
+  notes: dbPersonnel.comments || '',
   status: (dbPersonnel.status as 'pending' | 'approved' | 'rejected' | 'completed') || 'pending',
   created_at: dbPersonnel.created_at,
   updated_at: dbPersonnel.updated_at
 })
 
 // Helper function to transform frontend military personnel to database input
-const transformToDBInput = (personnel: Partial<MilitaryPersonnel>): Partial<MilitaryPersonnelInput> => ({
+const transformToDBInput = (personnel: Partial<MilitaryPersonnel> & { description?: string; sendDate?: string; notes?: string }): Partial<MilitaryPersonnelInput> => ({
   name: personnel.name || '',
   surname: personnel.surname || '',
   rank: personnel.rank || null,
@@ -77,7 +80,9 @@ const transformToDBInput = (personnel: Partial<MilitaryPersonnel>): Partial<Mili
   esso: personnel.esso || null,
   esso_year: personnel.essoYear || null,
   esso_letter: (personnel.essoLetter as any) || null,
-  wish: personnel.requestType || null,
+  wish: personnel.description || personnel.requestType || null, // Prefer description over requestType
+  send_date: personnel.sendDate || null,
+  comments: personnel.notes || null,
   status: personnel.status || 'pending'
 })
 
@@ -125,20 +130,34 @@ export const useMilitaryStore = create<MilitaryStore>()(
       },
 
       updateMilitaryPersonnel: async (id, personnelData) => {
+        console.log('Store: Starting updateMilitaryPersonnel with id:', id)
+        console.log('Store: Personnel data:', personnelData)
         set({ isLoading: true, error: null })
         
         try {
+          console.log('Store: Transforming to DB input...')
           const dbInput = transformToDBInput(personnelData)
-          const updatedDBPersonnel = await militaryService.updateMilitaryPersonnel(id, dbInput)
-          const updatedPersonnel = transformDBMilitaryPersonnel(updatedDBPersonnel)
+          console.log('Store: DB input:', dbInput)
           
+          console.log('Store: Calling militaryService.updateMilitaryPersonnel...')
+          const updatedDBPersonnel = await militaryService.updateMilitaryPersonnel(id, dbInput)
+          console.log('Store: Service returned:', updatedDBPersonnel)
+          
+          console.log('Store: Transforming DB personnel to frontend...')
+          const updatedPersonnel = transformDBMilitaryPersonnel(updatedDBPersonnel)
+          console.log('Store: Updated personnel:', updatedPersonnel)
+          
+          console.log('Store: Updating store state...')
           set(state => ({
             militaryPersonnel: state.militaryPersonnel.map(personnel =>
               personnel.id === id ? updatedPersonnel : personnel
             ),
             isLoading: false
           }))
+          
+          console.log('Store: Update completed successfully')
         } catch (error) {
+          console.error('Store: Error during update:', error)
           set({ 
             isLoading: false, 
             error: error instanceof Error ? error.message : 'Σφάλμα κατά την ενημέρωση στρατιωτικού'

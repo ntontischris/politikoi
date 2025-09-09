@@ -84,21 +84,12 @@ export function MilitaryViewModal({ militaryPersonnel, isOpen, onClose, onEdit }
               </p>
             </div>
           </div>
-          <div className="flex items-center space-x-2">
-            <button
-              onClick={handleEdit}
-              className="text-blue-400 hover:text-blue-300 p-2 hover:bg-slate-700 rounded-lg transition-colors"
-              title="Επεξεργασία"
-            >
-              <Edit className="h-5 w-5" />
-            </button>
-            <button
-              onClick={onClose}
-              className="text-gray-400 hover:text-white p-2 hover:bg-slate-700 rounded-lg transition-colors"
-            >
-              <X className="h-5 w-5" />
-            </button>
-          </div>
+          <button
+            onClick={onClose}
+            className="text-gray-400 hover:text-white p-2 hover:bg-slate-700 rounded-lg transition-colors"
+          >
+            <X className="h-5 w-5" />
+          </button>
         </div>
 
         {/* Content */}
@@ -265,19 +256,12 @@ export function MilitaryViewModal({ militaryPersonnel, isOpen, onClose, onEdit }
         </div>
 
         {/* Footer */}
-        <div className="flex justify-end space-x-4 p-6 border-t border-slate-700">
+        <div className="flex justify-center p-6 border-t border-slate-700">
           <button
             onClick={onClose}
             className="px-6 py-3 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors"
           >
             Κλείσιμο
-          </button>
-          <button
-            onClick={handleEdit}
-            className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg flex items-center transition-colors"
-          >
-            <Edit className="h-4 w-4 mr-2" />
-            Επεξεργασία
           </button>
         </div>
       </div>

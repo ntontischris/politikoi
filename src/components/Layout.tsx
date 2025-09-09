@@ -13,22 +13,27 @@ import {
   Search,
   BarChart3
 } from 'lucide-react'
+import { useAuthStore } from '../stores/authStore'
 
 export function Layout() {
+  const { profile, signOut, isAdmin } = useAuthStore()
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
   const navigationItems = [
-    { name: 'Dashboard', href: '/', icon: Home },
-    { name: 'Πολίτες', href: '/citizens', icon: Users },
-    { name: 'Στρατιωτικό', href: '/military', icon: Shield },
-    { name: 'ΕΣΣΟ Σύστημα', href: '/military-esso', icon: Shield },
-    { name: 'Αιτήματα', href: '/requests', icon: FileText },
-    { name: 'Αναφορές', href: '/reports', icon: BarChart3 },
-    { name: 'Ρυθμίσεις', href: '/settings', icon: Settings },
+    { name: 'Dashboard', href: '/dashboard', icon: Home },
+    { name: 'Πολίτες', href: '/dashboard/citizens', icon: Users },
+    { name: 'Στρατιωτικό', href: '/dashboard/military', icon: Shield },
+    { name: 'ΕΣΣΟ Σύστημα', href: '/dashboard/military-esso', icon: Shield },
+    { name: 'Αιτήματα', href: '/dashboard/requests', icon: FileText },
+    { name: 'Αναφορές', href: '/dashboard/reports', icon: BarChart3 },
+    ...(isAdmin() 
+      ? [{ name: 'Διαχείριση', href: '/dashboard/settings', icon: Settings }]
+      : []
+    ),
   ]
 
-  const handleLogout = () => {
-    console.log('Logout clicked')
+  const handleLogout = async () => {
+    await signOut()
   }
 
   return (
@@ -56,7 +61,7 @@ export function Layout() {
               <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-lg flex items-center justify-center">
                 <Shield className="w-5 h-5 text-white" />
               </div>
-              <span className="ml-3 text-white font-bold text-xl">CitizenManager</span>
+              <span className="ml-3 text-white font-bold text-xl">#oliipoligoli</span>
             </div>
             <button
               onClick={() => setSidebarOpen(false)}
@@ -87,11 +92,20 @@ export function Layout() {
           <div className="p-4 border-t border-slate-700">
             <div className="flex items-center mb-4">
               <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center">
-                <span className="text-white text-sm font-medium">AD</span>
+                <span className="text-white text-sm font-medium">
+                  {profile?.full_name?.charAt(0) || profile?.email?.charAt(0)?.toUpperCase() || 'U'}
+                </span>
               </div>
               <div className="ml-3">
-                <p className="text-white text-sm font-medium">Administrator</p>
-                <p className="text-gray-400 text-xs">admin@system.gr</p>
+                <p className="text-white text-sm font-medium">
+                  {profile?.full_name || 'Χρήστης'}
+                </p>
+                <p className="text-gray-400 text-xs">{profile?.email}</p>
+                {isAdmin() && (
+                  <span className="inline-block mt-1 px-2 py-0.5 text-xs bg-blue-600 text-white rounded-full">
+                    Admin
+                  </span>
+                )}
               </div>
             </div>
             <button

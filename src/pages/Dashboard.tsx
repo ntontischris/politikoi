@@ -10,29 +10,61 @@ import { useMilitaryStore } from '../stores/militaryStore'
 import { supabase } from '../lib/supabase'
 
 export function Dashboard() {
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [stats, setStats] = useState({
-    totalCitizens: 0,
-    totalRequests: 0,
-    militaryPersonnel: 0,
-    activeCitizens: 0,
-    inProgressRequests: 0,
-    completedRequests: 0,
-    pendingRequests: 0
-  })
-  const [analyticsData, setAnalyticsData] = useState<any>(null)
-  const navigate = useNavigate()
-  
   // Use stores for real-time data
   const citizenStore = useCitizenStore()
   const requestStore = useRequestStore()  
   const militaryStore = useMilitaryStore()
+  
+  // Initialize with cached data if available
+  const [loading, setLoading] = useState(() => {
+    // Only show loading if we have no cached data at all
+    return citizenStore.citizens.length === 0 && 
+           requestStore.requests.length === 0 && 
+           militaryStore.militaryPersonnel.length === 0
+  })
+  const [error, setError] = useState<string | null>(null)
+  
+  // Calculate initial stats from cached data
+  const calculateStatsFromStores = () => {
+    const citizens = citizenStore.citizens
+    const requests = requestStore.requests
+    const military = militaryStore.militaryPersonnel
+    
+    const activeCitizens = citizens.filter(c => c.status === 'active' || !c.status).length
+    const pendingRequests = requests.filter(r => 
+      r.status === 'pending' || r.status === 'ΕΚΚΡΕΜΕΙ' || !r.status
+    ).length
+    const inProgressRequests = requests.filter(r => 
+      r.status === 'in-progress' || r.status === 'in_progress'
+    ).length
+    const completedRequests = requests.filter(r => 
+      r.status === 'completed' || r.status === 'ΟΛΟΚΛΗΡΩΘΗΚΕ'
+    ).length
+    
+    return {
+      totalCitizens: citizens.length,
+      totalRequests: requests.length,
+      militaryPersonnel: military.length,
+      activeCitizens: activeCitizens,
+      pendingRequests: pendingRequests,
+      inProgressRequests: inProgressRequests,
+      completedRequests: completedRequests
+    }
+  }
+  
+  const [stats, setStats] = useState(() => calculateStatsFromStores())
+  const [analyticsData, setAnalyticsData] = useState<any>(null)
+  const navigate = useNavigate()
 
   // Load data from Supabase on component mount
   useEffect(() => {
+    let isMounted = true // Track if component is still mounted
+    
     const loadDashboardData = async () => {
-      setLoading(true)
+      // Don't set loading on initial render if we have cached data
+      if (citizenStore.citizens.length === 0 && requestStore.requests.length === 0) {
+        setLoading(true)
+      }
       setError(null)
       
       try {
@@ -45,8 +77,13 @@ export function Dashboard() {
         
         if (testError) {
           console.error('Supabase connection error:', testError)
-          throw new Error(`Σφάλμα σύνδεσης με τη βάση: ${testError.message}`)
+          if (isMounted) {
+            throw new Error(`Σφάλμα σύνδεσης με τη βάση: ${testError.message}`)
+          }
+          return
         }
+        
+        if (!isMounted) return // Component unmounted, stop execution
         
         console.log('Supabase connected successfully')
 
@@ -84,6 +121,8 @@ export function Dashboard() {
         } else if (militaryResult.status === 'rejected' || (militaryResult.status === 'fulfilled' && militaryResult.value.error)) {
           console.error('Error loading military personnel:', militaryResult)
         }
+        
+        if (!isMounted) return // Check again before setting state
 
         // Calculate stats from actual data
         const now = new Date()
@@ -100,15 +139,17 @@ export function Dashboard() {
           r.status === 'completed' || r.status === 'ΟΛΟΚΛΗΡΩΘΗΚΕ'
         ).length
 
-        setStats({
-          totalCitizens: citizensData.length,
-          totalRequests: requestsData.length,
-          militaryPersonnel: militaryData.length,
-          activeCitizens: activeCitizens,
-          pendingRequests: pendingRequests,
-          inProgressRequests: inProgressRequests,
-          completedRequests: completedRequests
-        })
+        if (isMounted) {
+          setStats({
+            totalCitizens: citizensData.length,
+            totalRequests: requestsData.length,
+            militaryPersonnel: militaryData.length,
+            activeCitizens: activeCitizens,
+            pendingRequests: pendingRequests,
+            inProgressRequests: inProgressRequests,
+            completedRequests: completedRequests
+          })
+        }
 
         console.log('Dashboard stats calculated:', {
           totalCitizens: citizensData.length,
@@ -121,7 +162,9 @@ export function Dashboard() {
           console.log('Loading real analytics...')
           const realAnalytics = await RealAnalyticsService.getFullAnalytics()
           console.log('Real analytics loaded successfully:', realAnalytics)
-          setAnalyticsData(realAnalytics)
+          if (isMounted) {
+            setAnalyticsData(realAnalytics)
+          }
         } catch (analyticsError) {
           console.error('Error loading analytics:', analyticsError)
           
@@ -134,30 +177,32 @@ export function Dashboard() {
             'Μη διαθέσιμο'
           
           // Set fallback analytics data so performance metrics show
-          setAnalyticsData({
-            monthlyTrends: [
-              { name: 'Απρ 2025', citizens: 5, requests: 1, military: 0 },
-              { name: 'Μάι 2025', citizens: 8, requests: 1, military: 0 },
-              { name: 'Ιουν 2025', citizens: 12, requests: 1, military: 1 },
-              { name: 'Ιουλ 2025', citizens: 15, requests: 2, military: 1 },
-              { name: 'Αυγ 2025', citizens: 18, requests: 2, military: 1 },
-              { name: 'Σεπ 2025', citizens: citizensData.length, requests: requestsData.length, military: militaryData.length }
-            ],
-            statusDistribution: completedRequestsCount > 0 ? [
-              { name: 'Ολοκληρωμένα', value: completedRequestsCount, color: '#10b981' }
-            ] : [{ name: 'Καμία δεδομένα', value: 1, color: '#94a3b8' }],
-            requestDistribution: requestsData.length > 0 ? [
-              { name: 'Γενικά Αιτήματα', value: requestsData.length, color: '#3b82f6' }
-            ] : [{ name: 'Καμία δεδομένα', value: 1, color: '#94a3b8' }],
-            growthRates: { citizensGrowth: 0, requestsGrowth: 0, militaryGrowth: 0 },
-            performanceMetrics: {
-              avgProcessingTime: 'Μη διαθέσιμο',
-              satisfactionRate: satisfactionRate,
-              systemUptime: '99.9%',
-              activeUsers: 1,
-              monthlyTransactions: citizensData.length + requestsData.length + militaryData.length
-            }
-          })
+          if (isMounted) {
+            setAnalyticsData({
+              monthlyTrends: [
+                { name: 'Απρ 2025', citizens: 5, requests: 1, military: 0 },
+                { name: 'Μάι 2025', citizens: 8, requests: 1, military: 0 },
+                { name: 'Ιουν 2025', citizens: 12, requests: 1, military: 1 },
+                { name: 'Ιουλ 2025', citizens: 15, requests: 2, military: 1 },
+                { name: 'Αυγ 2025', citizens: 18, requests: 2, military: 1 },
+                { name: 'Σεπ 2025', citizens: citizensData.length, requests: requestsData.length, military: militaryData.length }
+              ],
+              statusDistribution: completedRequestsCount > 0 ? [
+                { name: 'Ολοκληρωμένα', value: completedRequestsCount, color: '#10b981' }
+              ] : [{ name: 'Καμία δεδομένα', value: 1, color: '#94a3b8' }],
+              requestDistribution: requestsData.length > 0 ? [
+                { name: 'Γενικά Αιτήματα', value: requestsData.length, color: '#3b82f6' }
+              ] : [{ name: 'Καμία δεδομένα', value: 1, color: '#94a3b8' }],
+              growthRates: { citizensGrowth: 0, requestsGrowth: 0, militaryGrowth: 0 },
+              performanceMetrics: {
+                avgProcessingTime: 'Μη διαθέσιμο',
+                satisfactionRate: satisfactionRate,
+                systemUptime: '99.9%',
+                activeUsers: 1,
+                monthlyTransactions: citizensData.length + requestsData.length + militaryData.length
+              }
+            })
+          }
         }
 
         // Also load data into stores for other components
@@ -169,9 +214,13 @@ export function Dashboard() {
 
       } catch (error) {
         console.error('Error loading dashboard data:', error)
-        setError(error instanceof Error ? error.message : 'Άγνωστο σφάλμα κατά τη φόρτωση δεδομένων')
+        if (isMounted) {
+          setError(error instanceof Error ? error.message : 'Άγνωστο σφάλμα κατά τη φόρτωση δεδομένων')
+        }
       } finally {
-        setLoading(false)
+        if (isMounted) {
+          setLoading(false)
+        }
       }
     }
     
@@ -186,7 +235,9 @@ export function Dashboard() {
         table: 'citizens' 
       }, () => {
         console.log('Citizens data changed, reloading...')
-        loadDashboardData()
+        if (isMounted) {
+          loadDashboardData()
+        }
       })
       .subscribe()
 
@@ -198,11 +249,14 @@ export function Dashboard() {
         table: 'requests' 
       }, () => {
         console.log('Requests data changed, reloading...')
-        loadDashboardData()
+        if (isMounted) {
+          loadDashboardData()
+        }
       })
       .subscribe()
 
     return () => {
+      isMounted = false // Mark component as unmounted
       citizensSubscription.unsubscribe()
       requestsSubscription.unsubscribe()
     }
@@ -360,25 +414,25 @@ export function Dashboard() {
           </div>
           <div className="space-y-4">
             <button 
-              onClick={() => navigate('/citizens')}
+              onClick={() => navigate('/dashboard/citizens')}
               className="w-full bg-blue-600 hover:bg-blue-700 text-white p-4 rounded-lg transition-colors duration-200 flex items-center">
               <Users className="h-5 w-5 mr-3" />
               <span>Νέος Πολίτης</span>
             </button>
             <button 
-              onClick={() => navigate('/requests')}
+              onClick={() => navigate('/dashboard/requests')}
               className="w-full bg-slate-700 hover:bg-slate-600 text-white p-4 rounded-lg transition-colors duration-200 flex items-center">
               <FileText className="h-5 w-5 mr-3" />
               <span>Νέο Αίτημα</span>
             </button>
             <button 
-              onClick={() => navigate('/military')}
+              onClick={() => navigate('/dashboard/military')}
               className="w-full bg-slate-700 hover:bg-slate-600 text-white p-4 rounded-lg transition-colors duration-200 flex items-center">
               <Shield className="h-5 w-5 mr-3" />
               <span>Στρατιωτικό</span>
             </button>
             <button 
-              onClick={() => navigate('/reports')}
+              onClick={() => navigate('/dashboard/reports')}
               className="w-full bg-slate-700 hover:bg-slate-600 text-white p-4 rounded-lg transition-colors duration-200 flex items-center">
               <Calendar className="h-5 w-5 mr-3" />
               <span>Αναφορές</span>
@@ -494,19 +548,6 @@ export function Dashboard() {
         </div>
       </div>
 
-      {/* Debug Info - Remove in production */}
-      {process.env.NODE_ENV === 'development' && (
-        <div className="mt-8 p-4 bg-slate-900 border border-slate-700 rounded-lg">
-          <h3 className="text-sm font-semibold text-yellow-400 mb-2">Debug Info:</h3>
-          <div className="text-xs text-gray-400 space-y-1">
-            <div>Total Citizens: {stats.totalCitizens}</div>
-            <div>Total Requests: {stats.totalRequests}</div>
-            <div>Military Personnel: {stats.militaryPersonnel}</div>
-            <div>Store Loading: {citizenStore.isLoading ? 'Yes' : 'No'}</div>
-            <div>Store Error: {citizenStore.error || 'None'}</div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }

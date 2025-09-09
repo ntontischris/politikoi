@@ -35,6 +35,9 @@ export function Citizens() {
 
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState<'' | 'active' | 'inactive'>('')
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false)
+  const [cityFilter, setCityFilter] = useState('')
+  const [municipalityFilter, setMunicipalityFilter] = useState('')
   const [showAddModal, setShowAddModal] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
   const [showViewModal, setShowViewModal] = useState(false)
@@ -86,6 +89,8 @@ export function Citizens() {
   // Filter citizens locally after async operations
   const filteredCitizens = citizens.filter(citizen => {
     if (statusFilter && citizen.status !== statusFilter) return false
+    if (cityFilter && !citizen.city?.toLowerCase().includes(cityFilter.toLowerCase())) return false
+    if (municipalityFilter && citizen.municipality && !citizen.municipality.toLowerCase().includes(municipalityFilter.toLowerCase())) return false
     return true
   })
 
@@ -286,11 +291,63 @@ export function Citizens() {
             <option value="active">Ενεργοί</option>
             <option value="inactive">Ανενεργοί</option>
           </select>
-          <button className="bg-slate-700 hover:bg-slate-600 text-white px-6 py-3 rounded-lg flex items-center transition-colors duration-200">
+          <button 
+            onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+            className={`px-6 py-3 rounded-lg flex items-center transition-colors duration-200 ${
+              showAdvancedFilters 
+                ? 'bg-blue-600 hover:bg-blue-700 text-white' 
+                : 'bg-slate-700 hover:bg-slate-600 text-white'
+            }`}
+          >
             <Filter className="h-4 w-4 mr-2" />
             Φίλτρα
           </button>
         </div>
+        
+        {/* Advanced Filters */}
+        {showAdvancedFilters && (
+          <div className="mt-4 pt-4 border-t border-slate-600">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Φίλτρο Πόλης
+                </label>
+                <input
+                  type="text"
+                  placeholder="Αναζήτηση πόλης..."
+                  value={cityFilter}
+                  onChange={(e) => setCityFilter(e.target.value)}
+                  className="w-full bg-slate-700 border border-slate-600 text-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Φίλτρο Δήμου
+                </label>
+                <input
+                  type="text"
+                  placeholder="Αναζήτηση δήμου..."
+                  value={municipalityFilter}
+                  onChange={(e) => setMunicipalityFilter(e.target.value)}
+                  className="w-full bg-slate-700 border border-slate-600 text-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+              <div className="flex items-end">
+                <button
+                  onClick={() => {
+                    setCityFilter('')
+                    setMunicipalityFilter('')
+                    setStatusFilter('')
+                    setSearchTerm('')
+                  }}
+                  className="w-full bg-slate-600 hover:bg-slate-500 text-white px-4 py-2 rounded-lg transition-colors duration-200"
+                >
+                  Καθαρισμός Φίλτρων
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Citizens Table */}

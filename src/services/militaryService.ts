@@ -1,5 +1,6 @@
 import { BaseService } from './baseService'
 import { supabase } from '../lib/supabase'
+import { supabaseAdmin } from '../lib/supabase-admin'
 
 export interface MilitaryPersonnel {
   id: string
@@ -123,19 +124,58 @@ export class MilitaryService extends BaseService {
 
   async updateMilitaryPersonnel(id: string, personnelData: Partial<MilitaryPersonnelInput>): Promise<MilitaryPersonnel> {
     try {
+      console.log('Service: updateMilitaryPersonnel called with id:', id)
+      console.log('Service: personnelData:', personnelData)
+      
       this.validateId(id)
+      console.log('Service: ID validation passed')
       
-      const { data, error } = await supabase
-        .from('military_personnel')
-        .update({ ...personnelData, updated_at: new Date().toISOString() })
-        .eq('id', id)
-        .select()
-        .single()
-
-      if (error) this.handleError(error, 'ενημέρωση στρατιωτικού')
+      const updateData = { ...personnelData, updated_at: new Date().toISOString() }
+      console.log('Service: Update data with timestamp:', updateData)
       
+      console.log('Service: Executing Supabase update query...')
+      
+      // Try the simplest possible update first using admin client
+      try {
+        console.log('Service: Step 1 - Basic update using admin client')
+        const updateResponse = await supabaseAdmin
+          .from('military_personnel')
+          .update(updateData)
+          .eq('id', id)
+        
+        console.log('Service: Basic update response:', updateResponse)
+        
+        if (updateResponse.error) {
+          console.error('Service: Basic update failed:', updateResponse.error)
+          throw updateResponse.error
+        }
+        
+        console.log('Service: Step 2 - Now fetch the updated record')
+        const fetchResponse = await supabaseAdmin
+          .from('military_personnel')
+          .select()
+          .eq('id', id)
+          .single()
+        
+        console.log('Service: Fetch response:', fetchResponse)
+        
+        if (fetchResponse.error) {
+          console.error('Service: Fetch failed:', fetchResponse.error)
+          throw fetchResponse.error
+        }
+        
+        const data = fetchResponse.data
+        console.log('Service: Final data:', data)
+        
+      } catch (queryError) {
+        console.error('Service: Query execution failed:', queryError)
+        throw queryError
+      }
+      
+      console.log('Service: Returning updated data:', data)
       return data
     } catch (error) {
+      console.error('Service: Exception caught:', error)
       this.handleError(error as Error, 'ενημέρωση στρατιωτικού')
     }
   }

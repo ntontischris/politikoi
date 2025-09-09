@@ -111,6 +111,7 @@ export function MilitaryPersonnelForm({ isOpen, onClose, onSubmit, initialData, 
   }, [initialData, isOpen])
 
   const validateForm = (): boolean => {
+    console.log('Starting form validation...')
     const newErrors: Partial<MilitaryPersonnelFormData> = {}
 
     // Required fields validation
@@ -144,8 +145,11 @@ export function MilitaryPersonnelForm({ isOpen, onClose, onSubmit, initialData, 
       newErrors.description = 'Η περιγραφή είναι υποχρεωτική'
     }
 
+    console.log('Validation errors found:', Object.keys(newErrors))
+
     // Construct ESSO automatically
     if (formData.essoYear && formData.essoLetter) {
+      console.log('Updating ESSO field...')
       setFormData(prev => ({
         ...prev,
         esso: `${prev.essoYear}${prev.essoLetter}`
@@ -153,7 +157,9 @@ export function MilitaryPersonnelForm({ isOpen, onClose, onSubmit, initialData, 
     }
 
     setErrors(newErrors)
-    return Object.keys(newErrors).length === 0
+    const isValid = Object.keys(newErrors).length === 0
+    console.log('Form validation result:', isValid)
+    return isValid
   }
 
   const handleInputChange = (field: keyof MilitaryPersonnelFormData, value: string) => {
@@ -177,21 +183,35 @@ export function MilitaryPersonnelForm({ isOpen, onClose, onSubmit, initialData, 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
+    console.log('Form submit clicked, mode:', mode)
+    console.log('Form data:', formData)
+    
     if (!validateForm()) {
+      console.log('Form validation failed')
       return
     }
 
+    console.log('Form validation passed, submitting...')
     setIsSubmitting(true)
+    
+    // Ensure we always reset isSubmitting, even if something goes wrong
     try {
+      console.log('Calling onSubmit with formData...')
       await onSubmit(formData)
-      onClose()
+      console.log('Form submitted successfully')
+      
+      // Reset form and close modal
       setFormData(initialFormData)
       setErrors({})
+      onClose()
     } catch (error) {
       console.error('Error submitting form:', error)
-    } finally {
-      setIsSubmitting(false)
+      alert(`Σφάλμα κατά την υποβολή: ${error instanceof Error ? error.message : 'Άγνωστο σφάλμα'}`)
     }
+    
+    // Always reset submitting state regardless of success or failure
+    console.log('Resetting isSubmitting to false')
+    setIsSubmitting(false)
   }
 
   const handleClose = () => {

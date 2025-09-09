@@ -12,6 +12,14 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     autoRefreshToken: true,
     persistSession: true,
     detectSessionInUrl: true
+  },
+  global: {
+    headers: {
+      'X-Client-Info': 'citizen-management-dashboard'
+    }
+  },
+  db: {
+    schema: 'public'
   }
 })
 
