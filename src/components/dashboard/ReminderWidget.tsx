@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react'
-import { Bell, Clock, AlertTriangle, CheckCircle, Calendar, User } from 'lucide-react'
+import { Bell, Clock, AlertTriangle, CheckCircle, Calendar } from 'lucide-react'
 import { useReminderStore, type Reminder } from '../../stores/reminderStore'
-import { useCitizenStore } from '../../stores/citizenStore'
 
 const typeColors = {
   'ΕΟΡΤΗ': 'text-purple-400',
@@ -20,14 +19,10 @@ export const ReminderWidget: React.FC = () => {
   const { 
     reminders,
     loadReminders,
-    getTodaysReminders,
-    getUpcomingReminders, 
     markAsCompleted,
     getStats,
     isLoading
   } = useReminderStore()
-  
-  const { getCitizen } = useCitizenStore()
   
   const [activeTab, setActiveTab] = useState<'overdue' | 'upcoming'>('overdue')
   const [stats, setStats] = useState({ total: 0, completed: 0, pending: 0, upcoming: 0, byType: {} })

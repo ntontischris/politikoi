@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { NavLink, Outlet, useNavigate } from 'react-router-dom'
+import { NavLink, Outlet } from 'react-router-dom'
 import { 
   Home, 
   Users, 
@@ -16,7 +16,6 @@ import {
 
 export function Layout() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const navigate = useNavigate()
 
   const navigationItems = [
     { name: 'Dashboard', href: '/', icon: Home },

@@ -28,7 +28,7 @@ export const CommunicationForm: React.FC<CommunicationFormProps> = ({
   const [formData, setFormData] = useState({
     citizen_id: citizenId || communication?.citizen_id || '',
     communication_date: communication?.communication_date || new Date().toISOString().split('T')[0],
-    type: communication?.type || 'phone' as const,
+    type: (communication as any)?.communication_type || 'phone' as const,
     notes: communication?.notes || ''
   })
 
@@ -64,7 +64,12 @@ export const CommunicationForm: React.FC<CommunicationFormProps> = ({
       if (communication) {
         await updateCommunication(communication.id, formData)
       } else {
-        await addCommunication(formData)
+        await addCommunication({
+          citizen_id: formData.citizen_id,
+          communication_date: formData.communication_date,
+          communication_type: formData.type,
+          notes: formData.notes
+        })
       }
       onClose()
     } catch (error) {
