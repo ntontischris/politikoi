@@ -1,0 +1,348 @@
+import React, { useState } from 'react'
+import { FileText, AlertTriangle, Plus, Edit, Trash2, Clock, CheckCircle, XCircle, AlertCircle } from 'lucide-react'
+import { useRequestStore, type Request } from '../../stores/requestStore'
+import { RequestForm } from '../forms/RequestForm'
+import { RequestViewModal } from '../modals/RequestViewModal'
+
+interface RequestTimelineProps {
+  citizenId: string
+  citizenName?: string
+  showAddButton?: boolean
+}
+
+const statusIcons = {
+  submitted: Clock,
+  in_progress: AlertCircle,
+  pending_review: AlertTriangle,
+  approved: CheckCircle,
+  rejected: XCircle,
+  completed: CheckCircle
+}
+
+const statusLabels = {
+  submitted: 'Υποβληθείσα',
+  in_progress: 'Σε Εξέλιξη',
+  pending_review: 'Αναμονή Αξιολόγησης',
+  approved: 'Εγκεκριμένο',
+  rejected: 'Απορρίφθηκε',
+  completed: 'Ολοκληρώθηκε'
+}
+
+const statusColors = {
+  submitted: 'text-blue-400',
+  in_progress: 'text-yellow-400',
+  pending_review: 'text-orange-400',
+  approved: 'text-green-400',
+  rejected: 'text-red-400',
+  completed: 'text-emerald-400'
+}
+
+const priorityColors = {
+  low: 'text-slate-400',
+  medium: 'text-blue-400',
+  high: 'text-orange-400',
+  urgent: 'text-red-400'
+}
+
+const priorityLabels = {
+  low: 'Χαμηλή',
+  medium: 'Μέτρια',
+  high: 'Υψηλή',
+  urgent: 'Επείγουσα'
+}
+
+export const RequestTimeline: React.FC<RequestTimelineProps> = ({ 
+  citizenId, 
+  citizenName,
+  showAddButton = true
+}) => {
+  const { 
+    requests, 
+    deleteRequest,
+    error 
+  } = useRequestStore()
+
+  const [showForm, setShowForm] = useState(false)
+  const [showViewModal, setShowViewModal] = useState(false)
+  const [editingRequest, setEditingRequest] = useState<Request | null>(null)
+  const [viewingRequest, setViewingRequest] = useState<Request | null>(null)
+
+  // Filter requests for this citizen
+  const citizenRequests = requests
+    .filter(request => request.relatedCitizenId === citizenId)
+    .sort((a, b) => new Date(b.submissionDate).getTime() - new Date(a.submissionDate).getTime())
+
+  const handleEdit = (request: Request) => {
+    setEditingRequest(request)
+    setShowForm(true)
+  }
+
+  const handleView = (request: Request) => {
+    setViewingRequest(request)
+    setShowViewModal(true)
+  }
+
+  const handleDelete = async (request: Request) => {
+    if (window.confirm('Είστε σίγουροι ότι θέλετε να διαγράψετε αυτό το αίτημα;')) {
+      try {
+        await deleteRequest(request.id)
+      } catch (error) {
+        console.error('Σφάλμα κατά τη διαγραφή:', error)
+      }
+    }
+  }
+
+  const handleCloseForm = () => {
+    setShowForm(false)
+    setEditingRequest(null)
+  }
+
+  const handleCloseViewModal = () => {
+    setShowViewModal(false)
+    setViewingRequest(null)
+  }
+
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString)
+    return date.toLocaleDateString('el-GR', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric'
+    })
+  }
+
+  const getTimeAgo = (dateString: string) => {
+    const date = new Date(dateString)
+    const now = new Date()
+    const diffInDays = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24))
+    
+    if (diffInDays === 0) return 'Σήμερα'
+    if (diffInDays === 1) return 'Χθες'
+    if (diffInDays < 7) return `${diffInDays} μέρες πριν`
+    if (diffInDays < 30) return `${Math.floor(diffInDays / 7)} εβδομάδες πριν`
+    if (diffInDays < 365) return `${Math.floor(diffInDays / 30)} μήνες πριν`
+    return `${Math.floor(diffInDays / 365)} χρόνια πριν`
+  }
+
+  const getProgressWidth = (request: Request) => {
+    const statusOrder = ['submitted', 'in_progress', 'pending_review', 'approved', 'completed']
+    const currentIndex = statusOrder.indexOf(request.status)
+    if (request.status === 'rejected') return '100%'
+    return `${((currentIndex + 1) / statusOrder.length) * 100}%`
+  }
+
+  // Statistics
+  const stats = {
+    total: citizenRequests.length,
+    completed: citizenRequests.filter(r => r.status === 'completed').length,
+    inProgress: citizenRequests.filter(r => r.status === 'in_progress').length,
+    pending: citizenRequests.filter(r => ['submitted', 'pending_review'].includes(r.status)).length
+  }
+
+  return (
+    <div className="bg-slate-800/50 backdrop-blur-lg border border-slate-700 rounded-lg p-6">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h3 className="text-lg font-semibold text-white flex items-center">
+            <FileText className="w-5 h-5 mr-2 text-blue-400" />
+            Ιστορικό Αιτημάτων
+          </h3>
+          {citizenName && (
+            <p className="text-slate-400 text-sm mt-1">{citizenName}</p>
+          )}
+        </div>
+        {showAddButton && (
+          <button
+            onClick={() => setShowForm(true)}
+            className="flex items-center space-x-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Νέο Αίτημα</span>
+          </button>
+        )}
+      </div>
+
+      {/* Statistics */}
+      {citizenRequests.length > 0 && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+          <div className="p-3 bg-slate-700/30 border border-slate-600 rounded-lg">
+            <div className="text-lg font-semibold text-white">{stats.total}</div>
+            <div className="text-sm text-slate-400">Σύνολο</div>
+          </div>
+          <div className="p-3 bg-slate-700/30 border border-slate-600 rounded-lg">
+            <div className="text-lg font-semibold text-emerald-400">{stats.completed}</div>
+            <div className="text-sm text-slate-400">Ολοκληρωμένα</div>
+          </div>
+          <div className="p-3 bg-slate-700/30 border border-slate-600 rounded-lg">
+            <div className="text-lg font-semibold text-yellow-400">{stats.inProgress}</div>
+            <div className="text-sm text-slate-400">Σε Εξέλιξη</div>
+          </div>
+          <div className="p-3 bg-slate-700/30 border border-slate-600 rounded-lg">
+            <div className="text-lg font-semibold text-blue-400">{stats.pending}</div>
+            <div className="text-sm text-slate-400">Εκκρεμή</div>
+          </div>
+        </div>
+      )}
+
+      {/* Timeline */}
+      {citizenRequests.length === 0 ? (
+        <div className="text-center py-8">
+          <FileText className="w-12 h-12 text-slate-600 mx-auto mb-4" />
+          <p className="text-slate-400 mb-4">Δεν υπάρχουν καταχωρημένα αιτήματα</p>
+          {showAddButton && (
+            <button
+              onClick={() => setShowForm(true)}
+              className="text-blue-400 hover:text-blue-300 underline"
+            >
+              Προσθέστε το πρώτο αίτημα
+            </button>
+          )}
+        </div>
+      ) : (
+        <div className="space-y-6">
+          {citizenRequests.map((request, index) => {
+            const StatusIcon = statusIcons[request.status]
+            const isLast = index === citizenRequests.length - 1
+
+            return (
+              <div key={request.id} className="relative">
+                {/* Timeline line */}
+                {!isLast && (
+                  <div className="absolute left-6 top-16 w-0.5 h-full bg-slate-700 -z-10" />
+                )}
+
+                <div className="flex items-start space-x-4 group">
+                  {/* Timeline dot */}
+                  <div className="flex-shrink-0 w-12 h-12 bg-slate-700 border-2 border-slate-600 rounded-full flex items-center justify-center">
+                    <StatusIcon className={`w-5 h-5 ${statusColors[request.status]}`} />
+                  </div>
+
+                  {/* Content */}
+                  <div className="flex-1 bg-slate-700/30 hover:bg-slate-700/50 border border-slate-600 rounded-lg p-4 transition-colors">
+                    {/* Header */}
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="flex-1">
+                        <div className="flex items-center space-x-3 mb-2">
+                          <h4 className="font-medium text-white cursor-pointer hover:text-blue-400 transition-colors"
+                              onClick={() => handleView(request)}>
+                            {request.title}
+                          </h4>
+                          <span className={`px-2 py-1 text-xs font-medium rounded-full bg-slate-800 ${statusColors[request.status]}`}>
+                            {statusLabels[request.status]}
+                          </span>
+                          <span className={`text-xs font-medium ${priorityColors[request.priority]}`}>
+                            {priorityLabels[request.priority]}
+                          </span>
+                        </div>
+                        
+                        <div className="flex items-center space-x-4 text-sm text-slate-400 mb-3">
+                          <span>{request.category}</span>
+                          <span>•</span>
+                          <span>{formatDate(request.submissionDate)}</span>
+                          <span>•</span>
+                          <span>{getTimeAgo(request.submissionDate)}</span>
+                        </div>
+
+                        {/* Progress Bar */}
+                        {request.status !== 'rejected' && (
+                          <div className="mb-3">
+                            <div className="w-full bg-slate-600 rounded-full h-2">
+                              <div 
+                                className={`h-2 rounded-full transition-all duration-500 ${
+                                  request.status === 'completed' 
+                                    ? 'bg-emerald-500' 
+                                    : 'bg-blue-500'
+                                }`}
+                                style={{ width: getProgressWidth(request) }}
+                              />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Actions */}
+                      <div className="flex items-center space-x-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button
+                          onClick={() => handleView(request)}
+                          className="p-2 text-slate-400 hover:text-blue-400 hover:bg-slate-600 rounded-lg transition-colors"
+                          title="Προβολή"
+                        >
+                          <FileText className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handleEdit(request)}
+                          className="p-2 text-slate-400 hover:text-blue-400 hover:bg-slate-600 rounded-lg transition-colors"
+                          title="Επεξεργασία"
+                        >
+                          <Edit className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(request)}
+                          className="p-2 text-slate-400 hover:text-red-400 hover:bg-slate-600 rounded-lg transition-colors"
+                          title="Διαγραφή"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Description Preview */}
+                    {request.description && (
+                      <p className="text-slate-300 text-sm line-clamp-2 leading-relaxed">
+                        {request.description.length > 100 
+                          ? `${request.description.substring(0, 100)}...` 
+                          : request.description
+                        }
+                      </p>
+                    )}
+
+                    {/* Footer Info */}
+                    <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-600">
+                      <div className="flex items-center space-x-4 text-xs text-slate-400">
+                        <span>Τμήμα: {request.department}</span>
+                        {request.assignedTo && <span>Ανατέθηκε: {request.assignedTo}</span>}
+                      </div>
+                      {request.estimatedDays && (
+                        <div className="text-xs text-slate-400">
+                          Εκτιμώμενες μέρες: {request.estimatedDays}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {/* Error Display */}
+      {error && (
+        <div className="mt-4 p-4 bg-red-900/20 border border-red-800 rounded-lg">
+          <p className="text-red-300 text-sm">{error}</p>
+        </div>
+      )}
+
+      {/* Request Form Modal */}
+      {showForm && (
+        <RequestForm
+          request={editingRequest}
+          defaultCitizenId={citizenId}
+          onClose={handleCloseForm}
+          mode={editingRequest ? 'edit' : 'add'}
+        />
+      )}
+
+      {/* Request View Modal */}
+      {showViewModal && viewingRequest && (
+        <RequestViewModal
+          request={viewingRequest}
+          isOpen={showViewModal}
+          onClose={handleCloseViewModal}
+          onEdit={() => {}}
+        />
+      )}
+    </div>
+  )
+}
