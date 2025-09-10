@@ -118,15 +118,30 @@ export class CitizensService extends BaseService {
 
   async deleteCitizen(id: string): Promise<void> {
     try {
+      console.log('🔍 CitizensService: Validating ID:', id)
       this.validateId(id)
       
-      const { error } = await supabase
+      // Check if user is authenticated
+      const { data: { user } } = await supabase.auth.getUser()
+      console.log('👤 CitizensService: Current user:', user ? `${user.email} (${user.id})` : 'not authenticated')
+      
+      console.log('📡 CitizensService: Making Supabase delete call...')
+      const { data, error, count } = await supabase
         .from('citizens')
         .delete()
         .eq('id', id)
+        .select()
 
-      if (error) this.handleError(error, 'διαγραφή πολίτη')
+      console.log('📊 CitizensService: Supabase response:', { data, error, count, rowsAffected: data?.length || 0 })
+      
+      if (error) {
+        console.error('❌ CitizensService: Supabase returned error:', error)
+        this.handleError(error, 'διαγραφή πολίτη')
+      }
+      
+      console.log('✅ CitizensService: Deletion completed successfully')
     } catch (error) {
+      console.error('❌ CitizensService: Exception caught:', error)
       this.handleError(error as Error, 'διαγραφή πολίτη')
       throw error
     }

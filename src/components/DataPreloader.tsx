@@ -43,14 +43,22 @@ export function DataPreloader({ children }: DataPreloaderProps) {
         // No cached data, load before showing the app
         console.log('📡 No cached data, loading fresh data...')
         try {
-          await Promise.allSettled([
+          // Set timeout to prevent infinite loading
+          const timeout = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Data loading timeout')), 15000)
+          )
+          
+          const loadingPromise = Promise.allSettled([
             citizenStore.loadItems(),
             requestStore.loadItems(),
             militaryStore.loadItems()
           ])
+          
+          await Promise.race([loadingPromise, timeout])
           console.log('✅ Initial data load completed')
         } catch (error) {
           console.error('Initial data load error:', error)
+          // Continue anyway - better to show app with errors than infinite loading
         } finally {
           if (mounted) {
             setIsInitializing(false)

@@ -37,9 +37,9 @@ export function Reports() {
   const [showPrintModal, setShowPrintModal] = useState(false)
 
   // Get data from stores
-  const { citizens } = useCitizenStore()
-  const { requests } = useRequestStore()
-  const { militaryPersonnel } = useMilitaryStore()
+  const { items: citizens } = useCitizenStore()
+  const { items: requests } = useRequestStore()
+  const { items: militaryPersonnel } = useMilitaryStore()
   
   // Get analytics data
   const analyticsData = AnalyticsService.getFullAnalytics()
@@ -81,66 +81,54 @@ export function Reports() {
     setShowPrintModal(true)
   }
 
+
   const getReportData = () => {
-    const now = new Date()
-    const dateRange = `${now.toLocaleDateString('el-GR')} - ${now.toLocaleDateString('el-GR')}`
-    
+    if (!selectedReport) return null
+
+    const reportType = reportTypes.find(r => r.id === selectedReport)
+    if (!reportType) return null
+
+    let data: any[] = []
+    let summary: any = {}
+
     switch (filters.type) {
       case 'citizens':
-        return {
-          title: 'Αναφορά Πολιτών',
-          type: filters.type,
-          dateRange,
-          data: citizens.slice(0, 10), // Show first 10 for demo
-          summary: {
-            total: citizens.length,
-            active: citizens.filter(c => c.status === 'active').length,
-            pending: citizens.filter(c => c.status === 'pending').length,
-            completed: citizens.filter(c => c.status === 'completed').length
-          }
+        data = citizens || []
+        summary = {
+          total: data.length,
+          active: data.filter(c => c.status === 'active').length,
+          pending: 0,
+          completed: 0
         }
-      
+        break
       case 'requests':
-        return {
-          title: 'Αναφορά Αιτημάτων',
-          type: filters.type,
-          dateRange,
-          data: requests.slice(0, 10),
-          summary: {
-            total: requests.length,
-            active: requests.filter(r => r.status === 'in-progress').length,
-            pending: requests.filter(r => r.status === 'pending').length,
-            completed: requests.filter(r => r.status === 'completed').length
-          }
+        data = requests || []
+        summary = {
+          total: data.length,
+          active: data.filter(r => r.status === 'in-progress').length,
+          pending: data.filter(r => r.status === 'pending').length,
+          completed: data.filter(r => r.status === 'completed').length
         }
-      
+        break
       case 'military':
-        return {
-          title: 'Στρατιωτική Αναφορά ΕΣΣΟ',
-          type: filters.type,
-          dateRange,
-          data: militaryPersonnel.slice(0, 10),
-          summary: {
-            total: militaryPersonnel.length,
-            active: militaryPersonnel.filter(m => m.status === 'approved').length,
-            pending: militaryPersonnel.filter(m => m.status === 'pending').length,
-            completed: militaryPersonnel.filter(m => m.status === 'completed').length
-          }
+        data = militaryPersonnel || []
+        summary = {
+          total: data.length,
+          active: data.length,
+          pending: 0,
+          completed: 0
         }
-      
+        break
       default:
-        return {
-          title: 'Στατιστική Αναφορά',
-          type: 'analytics' as const,
-          dateRange,
-          data: [],
-          summary: {
-            total: citizens.length + requests.length + militaryPersonnel.length,
-            active: 0,
-            pending: 0,
-            completed: 0
-          }
-        }
+        return null
+    }
+
+    return {
+      title: reportType.title,
+      type: filters.type,
+      dateRange: `${filters.dateRange} - ${new Date().toLocaleDateString('el-GR')}`,
+      data,
+      summary
     }
   }
 
@@ -148,10 +136,6 @@ export function Reports() {
     window.print()
   }
 
-  const handleDownload = () => {
-    // This would integrate with a PDF generation library
-    alert('Η λειτουργία λήψης PDF θα υλοποιηθεί σύντομα')
-  }
 
   return (
     <div className="responsive-padding">
@@ -389,11 +373,12 @@ export function Reports() {
                 </button>
               </div>
               
-              <PrintableReport
-                reportData={getReportData()}
-                onPrint={handlePrint}
-                onDownload={handleDownload}
-              />
+              {getReportData() && (
+                <PrintableReport
+                  reportData={getReportData()!}
+                  onPrint={handlePrint}
+                />
+              )}
             </div>
           </div>
         </div>

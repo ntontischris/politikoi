@@ -93,14 +93,32 @@ export function RequestForm({ isOpen = true, onClose, onSubmit, initialData, mod
   const [isSubmitting, setIsSubmitting] = useState(false)
   
   // Store hooks
-  const { citizens, loadCitizens } = useCitizenStore()
-  const { militaryPersonnel, loadMilitaryPersonnel } = useMilitaryStore()
+  const { items: citizens, loadItems: loadCitizens } = useCitizenStore()
+  const { items: militaryPersonnel, loadItems: loadMilitaryPersonnel } = useMilitaryStore()
   
   // Load data when component mounts
   useEffect(() => {
     if (isOpen) {
       loadCitizens()
       loadMilitaryPersonnel()
+    }
+  }, [isOpen])
+  
+  // Update form data when initialData changes
+  useEffect(() => {
+    if (initialData) {
+      setFormData({
+        ...initialFormData,
+        ...initialData
+      })
+    }
+  }, [initialData, mode])
+  
+  // Reset form when modal closes
+  useEffect(() => {
+    if (!isOpen) {
+      setFormData(initialFormData)
+      setErrors({})
     }
   }, [isOpen])
 

@@ -1,5 +1,5 @@
 import React from 'react'
-import { FileText, Download, Printer, Calendar, Users, Shield } from 'lucide-react'
+import { FileText, Printer, Calendar, Users, Shield } from 'lucide-react'
 
 interface ReportData {
   title: string
@@ -17,13 +17,11 @@ interface ReportData {
 interface PrintableReportProps {
   reportData: ReportData
   onPrint: () => void
-  onDownload: () => void
 }
 
 export const PrintableReport: React.FC<PrintableReportProps> = ({ 
   reportData, 
-  onPrint, 
-  onDownload 
+  onPrint
 }) => {
   
   const getReportIcon = () => {
@@ -151,13 +149,6 @@ export const PrintableReport: React.FC<PrintableReportProps> = ({
           >
             <Printer className="h-4 w-4 mr-2" />
             Εκτύπωση
-          </button>
-          <button
-            onClick={onDownload}
-            className="bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded-lg flex items-center justify-center text-sm transition-colors duration-200 touch-target"
-          >
-            <Download className="h-4 w-4 mr-2" />
-            Λήψη PDF
           </button>
         </div>
       </div>

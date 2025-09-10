@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__github_com_supabase-community_supabase-mcp__execute_sql",
+      "mcp__github_com_supabase-community_supabase-mcp__list_projects",
+      "mcp__github_com_supabase-community_supabase-mcp__list_tables"
+    ]
+  },
+  "enabledMcpjsonServers": [
+    "github.com/supabase-community/supabase-mcp",
+    "playwright"
+  ]
+}

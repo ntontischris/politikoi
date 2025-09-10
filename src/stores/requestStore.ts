@@ -176,7 +176,7 @@ export const useRequestActions = () => {
     // Get statistics
     getStats: async () => {
       try {
-        const stats = await requestsService.getRequestStats()
+        const stats = await requestsService.getRequestsStats()
         return stats
       } catch (error) {
         console.error('Error getting request stats:', error)
@@ -217,6 +217,24 @@ export const useRequestActions = () => {
         status: 'completed',
         completionDate: completionDate || new Date().toISOString()
       })
+    },
+    
+    // Get departments (mock for now)
+    getDepartments: async (): Promise<string[]> => {
+      try {
+        // For now, return some common departments
+        return [
+          'Διοικητικό',
+          'Οικονομικό', 
+          'Τεχνικό',
+          'Νομικό',
+          'Προσωπικού',
+          'Πληροφορικής'
+        ]
+      } catch (error) {
+        console.error('Error getting departments:', error)
+        return []
+      }
     }
   }
 }

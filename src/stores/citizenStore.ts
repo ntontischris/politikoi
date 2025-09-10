@@ -149,18 +149,24 @@ export const useCitizenStore = create<CitizenStore>((set, get) => ({
 
   // Delete citizen
   deleteItem: async (id) => {
+    console.log('🗑️ CitizenStore: Starting deletion for ID:', id)
     set({ isLoading: true, error: null })
     try {
+      console.log('📡 CitizenStore: Calling Supabase delete...')
       await citizensService.deleteCitizen(id)
+      console.log('✅ CitizenStore: Supabase deletion successful, updating local state...')
       set(state => ({
         items: state.items.filter(item => item.id !== id),
         isLoading: false
       }))
+      console.log('✅ CitizenStore: Local state updated successfully')
     } catch (error) {
+      console.error('❌ CitizenStore: Deletion failed:', error)
       set({ 
         isLoading: false, 
         error: error instanceof Error ? error.message : 'Σφάλμα διαγραφής πολίτη'
       })
+      throw error
     }
   },
 

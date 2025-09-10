@@ -103,10 +103,8 @@ export function Requests() {
     if (!searchTerm.trim()) return true
     const term = searchTerm.toLowerCase()
     return (
-      request.title?.toLowerCase().includes(term) ||
-      request.description?.toLowerCase().includes(term) ||
-      request.category?.toLowerCase().includes(term) ||
-      request.department?.toLowerCase().includes(term)
+      request.requestType?.toLowerCase().includes(term) ||
+      request.description?.toLowerCase().includes(term)
     )
   }) || []
   
@@ -135,9 +133,8 @@ export function Requests() {
   if (searchTerm || typeFilter || statusFilter || priorityFilter || departmentFilter) {
     filteredRequests = requests.filter(request => {
       const matchesSearch = searchTerm ? (
-        request.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        request.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (request.citizenName && request.citizenName.toLowerCase().includes(searchTerm.toLowerCase()))
+        request.requestType.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        request.description.toLowerCase().includes(searchTerm.toLowerCase())
       ) : true
 
       const matchesType = typeFilter ? (request.citizenId ? 'citizen' : 'military') === typeFilter : true
@@ -154,7 +151,7 @@ export function Requests() {
   const handleAddRequest = async (formData: RequestFormData) => {
     try {
       await addRequest({
-        title: formData.title,
+        requestType: formData.title,
         description: formData.description,
         priority: formData.priority,
         status: 'pending' as const,
@@ -185,7 +182,7 @@ export function Requests() {
     
     try {
       await updateRequest(selectedRequest.id, {
-        title: formData.title,
+        requestType: formData.title,
         description: formData.description,
         priority: formData.priority,
         citizenId: formData.type === 'citizen' ? formData.citizenId : undefined,
@@ -250,15 +247,43 @@ export function Requests() {
 
   const convertRequestToFormData = (request: Request): RequestFormData => ({
     type: request.citizenId ? 'citizen' : 'military',
-    category: '',
-    title: request.title,
+    category: '', // Not stored in database
+    title: request.requestType,
     description: request.description,
     citizenId: request.citizenId || '',
     militaryId: request.militaryPersonnelId || '',
     priority: request.priority,
-    department: '',
-    estimatedDays: '',
-    notes: ''
+    department: '', // Not stored in database  
+    estimatedDays: '', // Not stored in database
+    notes: request.notes || ''
+  })
+
+  // Convert our Request to RequestViewModal format
+  const convertRequestToModalFormat = (request: Request) => ({
+    id: request.id,
+    type: request.citizenId ? 'citizen' as const : 'military' as const,
+    category: '', // Not stored in database
+    title: request.requestType,
+    description: request.description,
+    submitterName: 'Μη διαθέσιμο', // Not stored in database
+    submitterEmail: 'Μη διαθέσιμο', // Not stored in database  
+    submitterPhone: 'Μη διαθέσιμο', // Not stored in database
+    submitterAfm: '', // Not stored in database
+    relatedCitizenId: request.citizenId,
+    relatedMilitaryId: request.militaryPersonnelId,
+    priority: request.priority as 'low' | 'medium' | 'high',
+    status: request.status === 'in-progress' ? 'in_progress' as const : request.status as 'submitted' | 'pending' | 'completed' | 'rejected',
+    assignedTo: '', // Not stored in database
+    department: '', // Not stored in database
+    estimatedDays: 0, // Not stored in database
+    actualDays: 0, // Not stored in database
+    submissionDate: request.created_at,
+    responseDate: undefined, // Not stored in database
+    completionDate: request.completionDate,
+    notes: request.notes || '',
+    attachments: [],
+    created_at: request.created_at,
+    updated_at: request.updated_at
   })
 
   const getStatusColor = (status: string) => {
@@ -559,8 +584,8 @@ export function Requests() {
                 return (
                   <tr key={request.id} className="border-b border-slate-700 hover:bg-slate-700/30 transition-colors">
                     <td className="py-4 px-6">
-                      <div className="text-white font-medium truncate max-w-xs" title={request.title}>
-                        {request.title}
+                      <div className="text-white font-medium truncate max-w-xs" title={request.requestType}>
+                        {request.requestType}
                       </div>
                     </td>
                     <td className="py-4 px-6">
@@ -570,7 +595,7 @@ export function Requests() {
                     </td>
                     <td className="py-4 px-6">
                       <div className="text-white font-medium">
-                        {request.citizenName || 'Μη διαθέσιμο'}
+                        Μη διαθέσιμο
                       </div>
                     </td>
                     <td className="py-4 px-6">
@@ -644,8 +669,8 @@ export function Requests() {
                 {/* Header */}
                 <div className="flex items-start justify-between mb-3">
                   <div className="min-w-0 flex-1">
-                    <h3 className="text-white font-semibold text-base truncate" title={request.title}>
-                      {request.title}
+                    <h3 className="text-white font-semibold text-base truncate" title={request.requestType}>
+                      {request.requestType}
                     </h3>
                     <p className="text-gray-400 text-sm">{getTypeText(request.citizenId ? 'citizen' : 'military')}</p>
                   </div>
@@ -668,12 +693,10 @@ export function Requests() {
                       {getPriorityText(request.priority)}
                     </span>
                   </div>
-                  {request.citizenName && (
-                    <div className="flex items-center text-sm">
-                      <FileText className="h-4 w-4 text-gray-400 mr-2 flex-shrink-0" />
-                      <span className="text-gray-300 truncate">{request.citizenName}</span>
-                    </div>
-                  )}
+                  <div className="flex items-center text-sm">
+                    <FileText className="h-4 w-4 text-gray-400 mr-2 flex-shrink-0" />
+                    <span className="text-gray-300 truncate">Μη διαθέσιμο</span>
+                  </div>
                   {request.description && (
                     <div className="text-sm text-gray-300 bg-slate-800/50 rounded p-2 mt-2">
                       <p className="line-clamp-2">{request.description}</p>
@@ -738,13 +761,18 @@ export function Requests() {
       />
 
       <RequestViewModal
-        request={selectedRequest as any}
+        request={selectedRequest ? convertRequestToModalFormat(selectedRequest) : null}
         isOpen={showViewModal}
         onClose={() => {
           setShowViewModal(false)
           setSelectedRequest(null)
         }}
-        onEdit={handleEditFromView}
+        onEdit={() => {
+          if (selectedRequest) {
+            setShowEditModal(true)
+            setShowViewModal(false)
+          }
+        }}
       />
     </div>
   )

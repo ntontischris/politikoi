@@ -1,0 +1,30 @@
+{
+    "mcpServers": {
+      "github.com/supabase-community/supabase-mcp": {
+        "command": "cmd",
+        "args": [
+          "/c",
+          "npx",
+          "-y",
+          "@supabase/mcp-server-supabase@latest"
+        ],
+        "env": {
+          "SUPABASE_ACCESS_TOKEN": "sbp_f5039db774ae54ef3edb6049e56ba8635fd0e197"
+        },
+        "disabled": false,
+        "autoApprove": [
+          "list_projects"
+        ]
+      },
+      "playwright": {
+        "command": "cmd",
+        "args": [
+          "/c",
+          "npx",
+          "-y",
+          "@playwright/mcp@latest"
+        ],
+        "disabled": false
+      }
+    }
+  }
