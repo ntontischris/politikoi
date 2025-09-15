@@ -3,8 +3,9 @@ import { Layout } from './components/Layout'
 import { ProtectedRoute } from './components/ProtectedRoute'
 import { Dashboard } from './pages/Dashboard'
 import { Citizens } from './pages/Citizens'
-import { Military } from './pages/Military'
-import { MilitaryEsso } from './pages/MilitaryEsso'
+// Military pages are now integrated into Citizens page
+// import { Military } from './pages/Military'
+// import { MilitaryEsso } from './pages/MilitaryEsso'
 import { Requests } from './pages/Requests'
 import { Reports } from './pages/Reports'
 import { Settings } from './pages/Settings'
@@ -29,8 +30,9 @@ function App() {
           }>
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/dashboard/citizens" element={<Citizens />} />
-            <Route path="/dashboard/military" element={<Military />} />
-            <Route path="/dashboard/military-esso" element={<MilitaryEsso />} />
+            {/* Military routes are now integrated into Citizens page */}
+            {/* <Route path="/dashboard/military" element={<Military />} />
+            <Route path="/dashboard/military-esso" element={<MilitaryEsso />} /> */}
             <Route path="/dashboard/requests" element={<Requests />} />
             <Route path="/dashboard/reports" element={<Reports />} />
             <Route path="/dashboard/settings" element={

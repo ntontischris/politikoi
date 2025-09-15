@@ -1,38 +1,54 @@
 import { useState, useEffect } from 'react'
 import { Shield, Search, Plus, ChevronDown, ChevronRight, Edit, Eye, Trash2, Star, Clock, MapPin, AlertCircle, X, UserPlus, FileText } from 'lucide-react'
-import { useMilitaryActions } from '../stores/militaryStore'
-import { MilitaryPersonnelForm } from '../components/forms/MilitaryPersonnelForm'
-import { MilitaryViewModal } from '../components/modals/MilitaryViewModal'
-import type { MilitaryPersonnel } from '../stores/militaryStore'
+import { useCitizenActions } from '../stores/citizenStore'
+import { CitizenForm } from '../components/forms/CitizenForm'
+import { CitizenViewModal } from '../components/modals/CitizenViewModal'
+import type { Citizen } from '../stores/citizenStore'
 
-interface MilitaryPersonnelFormData {
+interface CitizenFormData {
   name: string
   surname: string
-  rank: string
-  unit: string
-  militaryId: string
-  esso: string
-  essoYear: string
-  essoLetter: string
-  requestType: string
-  description: string
-  sendDate: string
+  afm: string
+  phone: string
+  landline: string
+  email: string
+  address: string
+  city: string
+  postalCode: string
+  municipality: string
+  electoralDistrict: string
   notes: string
+  // Military fields
+  isMilitary: boolean
+  militaryRank: string
+  militaryUnit: string
+  militaryId: string
+  militaryEsso: string
+  militaryEssoYear: string
+  militaryEssoLetter: string
+  militaryWish: string
+  militaryStatus: string
+  militarySendDate: string
+  militaryComments: string
 }
 
 export function Military() {
   const {
-    items: militaryPersonnel,
+    getMilitaryPersonnel,
     isLoading,
     error,
-    loadItems: loadMilitaryPersonnel,
-    addItem: addMilitaryPersonnel,
-    updateItem: updateMilitaryPersonnel,
-    deleteItem: deleteMilitaryPersonnel,
-    getStats,
+    loadItems: loadCitizens,
+    addItem: addCitizen,
+    updateItem: updateCitizen,
+    deleteItem: deleteCitizen,
+    getMilitaryStats,
     getEssoGroups,
+    searchMilitaryPersonnel,
     setError
-  } = useMilitaryActions()
+  } = useCitizenActions()
+
+  // Get only military personnel from citizens
+  const militaryPersonnel = getMilitaryPersonnel()
 
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState<'' | 'pending' | 'approved' | 'rejected' | 'completed'>('')
@@ -42,7 +58,7 @@ export function Military() {
   const [showAddModal, setShowAddModal] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
   const [showViewModal, setShowViewModal] = useState(false)
-  const [selectedPersonnel, setSelectedPersonnel] = useState<MilitaryPersonnel | null>(null)
+  const [selectedPersonnel, setSelectedPersonnel] = useState<Citizen | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
   const [stats, setStats] = useState({ total: 0, pending: 0, approved: 0, rejected: 0, completed: 0, by_year: {} })
 
@@ -53,8 +69,8 @@ export function Military() {
   useEffect(() => {
     const loadData = async () => {
       try {
-        await loadMilitaryPersonnel()
-        const statsData = await getStats()
+        await loadCitizens()
+        const statsData = await getMilitaryStats()
         setStats(statsData)
       } catch (error) {
         console.error('Error loading military personnel:', error)
@@ -76,15 +92,15 @@ export function Military() {
     const matchesSearch = searchTerm ? (
       personnel.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       personnel.surname.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      personnel.rank.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      personnel.unit.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      personnel.militaryId.includes(searchTerm) ||
-      personnel.esso.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      personnel.requestType.toLowerCase().includes(searchTerm.toLowerCase())
+      (personnel.military_rank || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (personnel.military_service_unit || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (personnel.military_id || '').includes(searchTerm) ||
+      (personnel.military_esso || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (personnel.military_wish || '').toLowerCase().includes(searchTerm.toLowerCase())
     ) : true
 
-    const matchesStatus = statusFilter ? personnel.status === statusFilter : true
-    const matchesEsso = essoFilter ? personnel.esso === essoFilter : true
+    const matchesStatus = statusFilter ? personnel.military_status === statusFilter : true
+    const matchesEsso = essoFilter ? personnel.military_esso === essoFilter : true
 
     return matchesSearch && matchesStatus && matchesEsso
   })
@@ -93,30 +109,30 @@ export function Military() {
   const essoGroups = getEssoGroups()
   const uniqueEssos = Object.keys(essoGroups).sort()
 
-  const handleAddPersonnel = async (formData: MilitaryPersonnelFormData) => {
+  const handleAddPersonnel = async (formData: CitizenFormData) => {
     try {
-      await addMilitaryPersonnel({
+      await addCitizen({
         ...formData,
-        status: 'pending' as const
+        isMilitary: true
       })
       setShowAddModal(false)
       // Refresh stats after adding
-      const statsData = await getStats()
+      const statsData = await getMilitaryStats()
       setStats(statsData)
     } catch (error) {
       // Error is handled by the store
     }
   }
 
-  const handleEditPersonnel = async (formData: MilitaryPersonnelFormData) => {
+  const handleEditPersonnel = async (formData: CitizenFormData) => {
     if (!selectedPersonnel) return
-    
+
     try {
-      await updateMilitaryPersonnel(selectedPersonnel.id, formData)
+      await updateCitizen(selectedPersonnel.id, formData)
       setShowEditModal(false)
       setSelectedPersonnel(null)
       // Refresh stats after updating
-      const statsData = await getStats()
+      const statsData = await getMilitaryStats()
       setStats(statsData)
     } catch (error) {
       // Error is handled by the store
@@ -131,10 +147,10 @@ export function Military() {
     }
 
     try {
-      await deleteMilitaryPersonnel(id)
+      await deleteCitizen(id)
       setDeleteConfirm(null)
       // Refresh stats after deleting
-      const statsData = await getStats()
+      const statsData = await getMilitaryStats()
       setStats(statsData)
     } catch (error) {
       // Error is handled by the store

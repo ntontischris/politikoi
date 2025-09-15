@@ -50,7 +50,6 @@ export interface Citizen {
 export interface Request {
   id: string
   citizen_id?: string
-  military_personnel_id?: string
   request_type: string
   description: string
   status?: 'pending' | 'in-progress' | 'completed' | 'rejected' | 'ΕΚΚΡΕΜΕΙ' | 'ΟΛΟΚΛΗΡΩΘΗΚΕ' | 'ΑΠΟΡΡΙΦΘΗΚΕ'

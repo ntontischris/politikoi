@@ -4,7 +4,6 @@ import { supabase } from '../lib/supabase'
 export interface Request {
   id: string
   citizen_id?: string | null
-  military_personnel_id?: string | null
   request_type: string
   description: string
   status?: 'pending' | 'in-progress' | 'completed' | 'rejected' | 'ΕΚΚΡΕΜΕΙ' | 'ΟΛΟΚΛΗΡΩΘΗΚΕ' | 'ΑΠΟΡΡΙΦΘΗΚΕ'
@@ -22,11 +21,8 @@ export interface RequestWithDetails extends Request {
     name: string
     surname: string
     municipality?: string
-  } | null
-  military_personnel?: {
-    name: string
-    surname: string
-    rank?: string
+    is_military?: boolean
+    military_rank?: string
   } | null
 }
 
@@ -43,13 +39,12 @@ export class RequestsService extends BaseService {
         .from('requests')
         .select(`
           *,
-          citizens!citizen_id(name, surname, municipality),
-          military_personnel!military_personnel_id(name, surname, rank)
+          citizens!citizen_id(name, surname, municipality, is_military, military_rank)
         `)
         .order('created_at', { ascending: false })
 
       if (error) this.handleError(error, 'φόρτωση αιτημάτων')
-      
+
       return data || []
     } catch (error) {
       this.handleError(error as Error, 'φόρτωση αιτημάτων')
@@ -59,13 +54,12 @@ export class RequestsService extends BaseService {
   async getRequestById(id: string): Promise<RequestWithDetails | null> {
     try {
       this.validateId(id)
-      
+
       const { data, error } = await supabase
         .from('requests')
         .select(`
           *,
-          citizens!citizen_id(name, surname, municipality),
-          military_personnel!military_personnel_id(name, surname, rank)
+          citizens!citizen_id(name, surname, municipality, is_military, military_rank)
         `)
         .eq('id', id)
         .single()
@@ -156,14 +150,13 @@ export class RequestsService extends BaseService {
         .from('requests')
         .select(`
           *,
-          citizens!citizen_id(name, surname, municipality),
-          military_personnel!military_personnel_id(name, surname, rank)
+          citizens!citizen_id(name, surname, municipality, is_military, military_rank)
         `)
         .eq('status', status)
         .order('created_at', { ascending: false })
 
       if (error) this.handleError(error, 'φόρτωση αιτημάτων ανά κατάσταση')
-      
+
       return data || []
     } catch (error) {
       this.handleError(error as Error, 'φόρτωση αιτημάτων ανά κατάσταση')

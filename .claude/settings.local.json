@@ -3,7 +3,8 @@
     "allow": [
       "mcp__github_com_supabase-community_supabase-mcp__execute_sql",
       "mcp__github_com_supabase-community_supabase-mcp__list_projects",
-      "mcp__github_com_supabase-community_supabase-mcp__list_tables"
+      "mcp__github_com_supabase-community_supabase-mcp__list_tables",
+      "mcp__github_com_supabase-community_supabase-mcp__apply_migration"
     ]
   },
   "enabledMcpjsonServers": [

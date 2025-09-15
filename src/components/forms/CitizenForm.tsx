@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { X, Save, User, Phone, MapPin, FileText } from 'lucide-react'
+import { X, Save, User, Phone, MapPin, FileText, Shield } from 'lucide-react'
 
 interface CitizenFormData {
   name: string
@@ -14,6 +14,18 @@ interface CitizenFormData {
   municipality: string
   electoralDistrict: string
   notes: string
+  // Military fields
+  isMilitary: boolean
+  militaryRank: string
+  militaryUnit: string
+  militaryId: string
+  militaryEsso: string
+  militaryEssoYear: string
+  militaryEssoLetter: string
+  militaryWish: string
+  militaryStatus: string
+  militarySendDate: string
+  militaryComments: string
 }
 
 interface CitizenFormProps {
@@ -36,7 +48,19 @@ const initialFormData: CitizenFormData = {
   postalCode: '',
   municipality: '',
   electoralDistrict: '',
-  notes: ''
+  notes: '',
+  // Military fields
+  isMilitary: false,
+  militaryRank: '',
+  militaryUnit: '',
+  militaryId: '',
+  militaryEsso: '',
+  militaryEssoYear: '',
+  militaryEssoLetter: '',
+  militaryWish: '',
+  militaryStatus: 'pending',
+  militarySendDate: '',
+  militaryComments: ''
 }
 
 const municipalities = [
@@ -53,6 +77,32 @@ const electoralDistricts = [
   'Α ΘΕΣΣΑΛΟΝΙΚΗΣ',
   'Β ΘΕΣΣΑΛΟΝΙΚΗΣ'
 ]
+
+const militaryRanks = [
+  'Στρατιώτης',
+  'Δεκανέας',
+  'Λοχίας',
+  'Επιλοχίας',
+  'Ανθυπολοχαγός',
+  'Υπολοχαγός',
+  'Λοχαγός',
+  'Ταγματάρχης',
+  'Αντισυνταγματάρχης',
+  'Συνταγματάρχης',
+  'Ταξίαρχος',
+  'Υποστράτηγος',
+  'Αντιστράτηγος',
+  'Στρατηγός'
+]
+
+const militaryStatuses = [
+  { value: 'pending', label: 'Εκκρεμεί' },
+  { value: 'approved', label: 'Εγκρίθηκε' },
+  { value: 'rejected', label: 'Απορρίφθηκε' },
+  { value: 'completed', label: 'Ολοκληρώθηκε' }
+]
+
+const essoLetters = ['Α', 'Β', 'Γ', 'Δ', 'Ε', 'ΣΤ']
 
 export function CitizenForm({ isOpen, onClose, onSubmit, initialData, mode }: CitizenFormProps) {
   const [formData, setFormData] = useState<CitizenFormData>(initialFormData)
@@ -77,7 +127,19 @@ export function CitizenForm({ isOpen, onClose, onSubmit, initialData, mode }: Ci
           postalCode: initialData.postalCode || '',
           municipality: initialData.municipality || '',
           electoralDistrict: initialData.electoralDistrict || '',
-          notes: initialData.notes || ''
+          notes: initialData.notes || '',
+          // Military fields
+          isMilitary: initialData.isMilitary || false,
+          militaryRank: initialData.militaryRank || '',
+          militaryUnit: initialData.militaryUnit || '',
+          militaryId: initialData.militaryId || '',
+          militaryEsso: initialData.militaryEsso || '',
+          militaryEssoYear: initialData.militaryEssoYear || '',
+          militaryEssoLetter: initialData.militaryEssoLetter || '',
+          militaryWish: initialData.militaryWish || '',
+          militaryStatus: initialData.militaryStatus || 'pending',
+          militarySendDate: initialData.militarySendDate || '',
+          militaryComments: initialData.militaryComments || ''
         })
       } else {
         // For add mode, start with empty form
@@ -431,6 +493,167 @@ export function CitizenForm({ isOpen, onClose, onSubmit, initialData, mode }: Ci
                 ))}
               </select>
             </div>
+
+            {/* Military Section */}
+            <div className="sm:col-span-2 lg:col-span-3 mt-4 sm:mt-6">
+              <div className="flex items-center mb-4">
+                <Shield className="h-4 w-4 sm:h-5 sm:w-5 text-green-400 mr-2 flex-shrink-0" />
+                <h3 className="text-base sm:text-lg font-medium text-white">Στρατιωτικές Πληροφορίες</h3>
+              </div>
+            </div>
+
+            <div className="sm:col-span-2 lg:col-span-3">
+              <label className="flex items-center text-sm font-medium text-gray-300 mb-4">
+                <input
+                  type="checkbox"
+                  checked={formData.isMilitary}
+                  onChange={(e) => handleInputChange('isMilitary', e.target.checked)}
+                  className="mr-2 h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300 rounded"
+                />
+                Είναι στρατιωτικό προσωπικό
+              </label>
+            </div>
+
+            {formData.isMilitary && (
+              <>
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Βαθμός
+                  </label>
+                  <select
+                    value={formData.militaryRank}
+                    onChange={(e) => handleInputChange('militaryRank', e.target.value)}
+                    className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 sm:px-4 py-2.5 sm:py-3 text-white text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 touch-target"
+                  >
+                    <option value="">Επιλέξτε βαθμό...</option>
+                    {militaryRanks.map(rank => (
+                      <option key={rank} value={rank}>{rank}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Μονάδα Υπηρεσίας
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.militaryUnit}
+                    onChange={(e) => handleInputChange('militaryUnit', e.target.value)}
+                    className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 sm:px-4 py-2.5 sm:py-3 text-white text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 touch-target"
+                    placeholder="π.χ. 1η ΤΑΞΥΔ"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Στρατιωτικό Μητρώο
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.militaryId}
+                    onChange={(e) => handleInputChange('militaryId', e.target.value)}
+                    className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 sm:px-4 py-2.5 sm:py-3 text-white text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 touch-target"
+                    placeholder="Στρατιωτικό μητρώο"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    ΕΣΣΟ
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.militaryEsso}
+                    onChange={(e) => handleInputChange('militaryEsso', e.target.value)}
+                    className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 sm:px-4 py-2.5 sm:py-3 text-white text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 touch-target"
+                    placeholder="ΕΣΣΟ"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Έτος ΕΣΣΟ
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.militaryEssoYear}
+                    onChange={(e) => handleInputChange('militaryEssoYear', e.target.value)}
+                    className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 sm:px-4 py-2.5 sm:py-3 text-white text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 touch-target"
+                    placeholder="π.χ. 2024"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Γράμμα ΕΣΣΟ
+                  </label>
+                  <select
+                    value={formData.militaryEssoLetter}
+                    onChange={(e) => handleInputChange('militaryEssoLetter', e.target.value)}
+                    className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 sm:px-4 py-2.5 sm:py-3 text-white text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 touch-target"
+                  >
+                    <option value="">Επιλέξτε γράμμα...</option>
+                    {essoLetters.map(letter => (
+                      <option key={letter} value={letter}>{letter}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="sm:col-span-2 lg:col-span-3">
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Επιθυμία/Αίτημα
+                  </label>
+                  <textarea
+                    value={formData.militaryWish}
+                    onChange={(e) => handleInputChange('militaryWish', e.target.value)}
+                    rows={3}
+                    className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 sm:px-4 py-2.5 sm:py-3 text-white text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 touch-target resize-none"
+                    placeholder="Περιγράψτε την επιθυμία ή το αίτημα..."
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Κατάσταση
+                  </label>
+                  <select
+                    value={formData.militaryStatus}
+                    onChange={(e) => handleInputChange('militaryStatus', e.target.value)}
+                    className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 sm:px-4 py-2.5 sm:py-3 text-white text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 touch-target"
+                  >
+                    {militaryStatuses.map(status => (
+                      <option key={status.value} value={status.value}>{status.label}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Ημερομηνία Αποστολής
+                  </label>
+                  <input
+                    type="date"
+                    value={formData.militarySendDate}
+                    onChange={(e) => handleInputChange('militarySendDate', e.target.value)}
+                    className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 sm:px-4 py-2.5 sm:py-3 text-white text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 touch-target"
+                  />
+                </div>
+
+                <div className="sm:col-span-2 lg:col-span-3">
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Στρατιωτικά Σχόλια
+                  </label>
+                  <textarea
+                    value={formData.militaryComments}
+                    onChange={(e) => handleInputChange('militaryComments', e.target.value)}
+                    rows={3}
+                    className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 sm:px-4 py-2.5 sm:py-3 text-white text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 touch-target resize-none"
+                    placeholder="Προσθέστε στρατιωτικά σχόλια..."
+                  />
+                </div>
+              </>
+            )}
 
             {/* Notes */}
             <div className="sm:col-span-2 lg:col-span-3 mt-4 sm:mt-6">

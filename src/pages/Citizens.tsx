@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Users, Search, Filter, Edit, Trash2, Eye, UserPlus, AlertCircle, X, Phone, Mail, MapPin } from 'lucide-react'
+import { Users, Search, Filter, Edit, Trash2, Eye, UserPlus, AlertCircle, X, Phone, Mail, MapPin, Shield } from 'lucide-react'
 import { useCitizenActions } from '../stores/citizenStore'
 import { CitizenForm } from '../components/forms/CitizenForm'
 import { CitizenViewModal } from '../components/modals/CitizenViewModal'
@@ -36,6 +36,7 @@ export function Citizens() {
 
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState<'' | 'active' | 'inactive'>('')
+  const [militaryFilter, setMilitaryFilter] = useState<'' | 'military' | 'civilian'>('')
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false)
   const [cityFilter, setCityFilter] = useState('')
   const [municipalityFilter, setMunicipalityFilter] = useState('')
@@ -91,7 +92,9 @@ export function Citizens() {
   // Filter citizens locally after async operations
   const filteredCitizens = citizens.filter(citizen => {
     if (statusFilter && citizen.status !== statusFilter) return false
-    if (cityFilter && !citizen.city?.toLowerCase().includes(cityFilter.toLowerCase())) return false
+    if (militaryFilter === 'military' && !citizen.is_military) return false
+    if (militaryFilter === 'civilian' && citizen.is_military) return false
+    if (cityFilter && !citizen.area?.toLowerCase().includes(cityFilter.toLowerCase())) return false
     if (municipalityFilter && citizen.municipality && !citizen.municipality.toLowerCase().includes(municipalityFilter.toLowerCase())) return false
     return true
   })
@@ -294,7 +297,7 @@ export function Citizens() {
               />
             </div>
             <div className="flex gap-3 sm:gap-4">
-              <select 
+              <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value as '' | 'active' | 'inactive')}
                 className="flex-1 sm:flex-none bg-slate-700 border border-slate-600 text-white rounded-lg px-3 sm:px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -302,6 +305,15 @@ export function Citizens() {
                 <option value="">Όλες</option>
                 <option value="active">Ενεργοί</option>
                 <option value="inactive">Ανενεργοί</option>
+              </select>
+              <select
+                value={militaryFilter}
+                onChange={(e) => setMilitaryFilter(e.target.value as '' | 'military' | 'civilian')}
+                className="flex-1 sm:flex-none bg-slate-700 border border-slate-600 text-white rounded-lg px-3 sm:px-4 py-3 text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500"
+              >
+                <option value="">Όλοι</option>
+                <option value="civilian">Πολίτες</option>
+                <option value="military">Στρατιωτικοί</option>
               </select>
               <button 
                 onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
@@ -352,6 +364,7 @@ export function Citizens() {
                     setCityFilter('')
                     setMunicipalityFilter('')
                     setStatusFilter('')
+                    setMilitaryFilter('')
                     setSearchTerm('')
                   }}
                   className="w-full bg-slate-600 hover:bg-slate-500 text-white px-4 py-2 rounded-lg transition-colors duration-200 touch-target font-medium text-sm"
@@ -408,10 +421,18 @@ export function Citizens() {
               filteredCitizens.map((citizen) => (
                 <tr key={citizen.id} className="border-b border-slate-700 hover:bg-slate-700/30 transition-colors">
                   <td className="py-4 px-4">
-                    <div className="text-white font-medium truncate">
-                      {citizen.name} {citizen.surname}
+                    <div className="flex items-center gap-2">
+                      <div className="text-white font-medium truncate">
+                        {citizen.name} {citizen.surname}
+                      </div>
+                      {citizen.is_military && (
+                        <div className="flex items-center gap-1">
+                          <Shield className="h-3 w-3 text-green-400" />
+                          <span className="text-xs text-green-400 font-medium">ΣΤΡΑΤ</span>
+                        </div>
+                      )}
                     </div>
-                    <div className="text-xs text-gray-400 truncate">{citizen.city}</div>
+                    <div className="text-xs text-gray-400 truncate">{citizen.area}</div>
                   </td>
                   <td className="py-4 px-4 text-gray-300 font-mono text-sm">{citizen.afm}</td>
                   <td className="py-4 px-4">
@@ -483,9 +504,17 @@ export function Citizens() {
               {/* Header */}
               <div className="flex items-start justify-between mb-3">
                 <div className="min-w-0 flex-1">
-                  <h3 className="text-white font-semibold text-base truncate">
-                    {citizen.name} {citizen.surname}
-                  </h3>
+                  <div className="flex items-center gap-2 mb-1">
+                    <h3 className="text-white font-semibold text-base truncate">
+                      {citizen.name} {citizen.surname}
+                    </h3>
+                    {citizen.is_military && (
+                      <div className="flex items-center gap-1">
+                        <Shield className="h-3 w-3 text-green-400" />
+                        <span className="text-xs text-green-400 font-medium">ΣΤΡΑΤ</span>
+                      </div>
+                    )}
+                  </div>
                   <p className="text-gray-400 text-sm">ΑΦΜ: {citizen.afm}</p>
                 </div>
                 <span className={`px-2 py-1 rounded-full text-xs font-medium flex-shrink-0 ml-2 ${

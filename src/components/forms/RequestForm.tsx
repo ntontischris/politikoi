@@ -1,15 +1,12 @@
 import { useState, useEffect } from 'react'
-import { X, Save, FileText, User, AlertTriangle, Building } from 'lucide-react'
+import { X, Save, FileText, Building } from 'lucide-react'
 import { useCitizenStore } from '../../stores/citizenStore'
-import { useMilitaryStore } from '../../stores/militaryStore'
 
 interface RequestFormData {
-  type: 'citizen' | 'military'
   category: string
   title: string
   description: string
   citizenId: string
-  militaryId: string
   priority: 'low' | 'medium' | 'high' | 'urgent'
   department: string
   estimatedDays: string
@@ -20,44 +17,34 @@ interface RequestFormProps {
   isOpen?: boolean
   onClose: () => void
   onSubmit?: (data: RequestFormData) => void
-  request?: any
+  request?: unknown
   defaultCitizenId?: string
   initialData?: Partial<RequestFormData>
   mode: 'add' | 'edit'
 }
 
 const initialFormData: RequestFormData = {
-  type: 'citizen',
   category: '',
   title: '',
   description: '',
   citizenId: '',
-  militaryId: '',
   priority: 'medium',
   department: '',
   estimatedDays: '',
   notes: ''
 }
 
-const requestTypes = [
-  { value: 'citizen', label: 'Πολιτικό Αίτημα', icon: User },
-  { value: 'military', label: 'Στρατιωτικό Αίτημα', icon: AlertTriangle }
-]
-
-const citizenCategories = [
+const allCategories = [
+  // General categories
   'Βεβαίωση',
   'Πιστοποιητικό',
   'Άδεια',
   'Δήλωση',
   'Αίτηση Επιδότησης',
   'Φοιτητικό Επίδομα',
-  'Άλλο'
-]
-
-const militaryCategories = [
+  // Military categories
   'Μετάθεση',
   'Προαγωγή',
-  'Άδεια',
   'Εκπαίδευση',
   'Απόσπαση',
   'Παραίτηση',
@@ -94,15 +81,13 @@ export function RequestForm({ isOpen = true, onClose, onSubmit, initialData, mod
   
   // Store hooks
   const { items: citizens, loadItems: loadCitizens } = useCitizenStore()
-  const { items: militaryPersonnel, loadItems: loadMilitaryPersonnel } = useMilitaryStore()
-  
+
   // Load data when component mounts
   useEffect(() => {
     if (isOpen) {
       loadCitizens()
-      loadMilitaryPersonnel()
     }
-  }, [isOpen])
+  }, [isOpen, loadCitizens])
   
   // Update form data when initialData changes
   useEffect(() => {
@@ -122,31 +107,15 @@ export function RequestForm({ isOpen = true, onClose, onSubmit, initialData, mod
     }
   }, [isOpen])
 
-  const getCategoriesByType = (type: string) => {
-    switch (type) {
-      case 'citizen': return citizenCategories
-      case 'military': return militaryCategories
-      default: return []
-    }
-  }
-  
-  // Get filtered data based on type
+  // Get available citizens (including military personnel)
   const getAvailablePersons = () => {
-    if (formData.type === 'citizen') {
-      return citizens.filter(c => c.status === 'active')
-    } else if (formData.type === 'military') {
-      return militaryPersonnel.filter(m => m.status === 'pending' || m.status === 'approved')
-    }
-    return []
+    return citizens.filter(c => c.status === 'active')
   }
 
   const validateForm = (): boolean => {
     const newErrors: Partial<RequestFormData> = {}
 
     // Required fields validation
-    if (!formData.type.trim()) {
-      newErrors.type = 'citizen' as any
-    }
     if (!formData.category.trim()) {
       newErrors.category = 'Η κατηγορία είναι υποχρεωτική'
     }
@@ -159,13 +128,10 @@ export function RequestForm({ isOpen = true, onClose, onSubmit, initialData, mod
     if (!formData.department.trim()) {
       newErrors.department = 'Το τμήμα είναι υποχρεωτικό'
     }
-    
+
     // Person selection validation
-    if (formData.type === 'citizen' && !formData.citizenId.trim()) {
-      newErrors.citizenId = 'Η επιλογή πολίτη είναι υποχρεωτική' as any
-    }
-    if (formData.type === 'military' && !formData.militaryId.trim()) {
-      newErrors.militaryId = 'Η επιλογή στρατιωτικού είναι υποχρεωτική' as any
+    if (!formData.citizenId.trim()) {
+      newErrors.citizenId = 'Η επιλογή πολίτη είναι υποχρεωτική'
     }
 
     // Estimated days validation (optional but if provided should be a number)
@@ -179,17 +145,7 @@ export function RequestForm({ isOpen = true, onClose, onSubmit, initialData, mod
 
   const handleInputChange = (field: keyof RequestFormData, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }))
-    
-    // Reset related fields when type changes
-    if (field === 'type') {
-      setFormData(prev => ({ 
-        ...prev, 
-        category: '',
-        citizenId: '',
-        militaryId: ''
-      }))
-    }
-    
+
     // Clear error when user starts typing
     if (errors[field]) {
       setErrors(prev => ({ ...prev, [field]: undefined }))
@@ -205,7 +161,9 @@ export function RequestForm({ isOpen = true, onClose, onSubmit, initialData, mod
 
     setIsSubmitting(true)
     try {
-      onSubmit && await onSubmit(formData)
+      if (onSubmit) {
+        await onSubmit(formData)
+      }
       onClose()
       setFormData(initialFormData)
       setErrors({})
@@ -224,7 +182,8 @@ export function RequestForm({ isOpen = true, onClose, onSubmit, initialData, mod
 
   if (!isOpen) return null
 
-  const categories = getCategoriesByType(formData.type)
+  // Use unified categories for all requests
+  const categories = allCategories
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -251,32 +210,12 @@ export function RequestForm({ isOpen = true, onClose, onSubmit, initialData, mod
         <form onSubmit={handleSubmit} className="p-6">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             
-            {/* Request Type & Category */}
+            {/* Category */}
             <div className="lg:col-span-3">
               <div className="flex items-center mb-4">
                 <FileText className="h-5 w-5 text-blue-400 mr-2" />
-                <h3 className="text-lg font-medium text-white">Τύπος & Κατηγορία Αιτήματος</h3>
+                <h3 className="text-lg font-medium text-white">Κατηγορία Αιτήματος</h3>
               </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
-                Τύπος Αιτήματος *
-              </label>
-              <select
-                value={formData.type}
-                onChange={(e) => handleInputChange('type', e.target.value)}
-                className={`w-full bg-slate-700 border rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                  errors.type ? 'border-red-500' : 'border-slate-600'
-                }`}
-              >
-                {requestTypes.map(type => (
-                  <option key={type.value} value={type.value}>{type.label}</option>
-                ))}
-              </select>
-              {errors.type && (
-                <p className="mt-1 text-sm text-red-400">{errors.type}</p>
-              )}
             </div>
 
             <div>
@@ -346,38 +285,31 @@ export function RequestForm({ isOpen = true, onClose, onSubmit, initialData, mod
             {/* Person Selection */}
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-2">
-                {formData.type === 'citizen' ? 'Επιλογή Πολίτη *' : 'Επιλογή Στρατιωτικού *'}
+                Επιλογή Πολίτη *
               </label>
               <select
-                value={formData.type === 'citizen' ? formData.citizenId : formData.militaryId}
-                onChange={(e) => handleInputChange(formData.type === 'citizen' ? 'citizenId' : 'militaryId', e.target.value)}
+                value={formData.citizenId}
+                onChange={(e) => handleInputChange('citizenId', e.target.value)}
                 className={`w-full bg-slate-700 border rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                  (formData.type === 'citizen' && errors.citizenId) || (formData.type === 'military' && errors.militaryId) 
-                    ? 'border-red-500' : 'border-slate-600'
+                  errors.citizenId ? 'border-red-500' : 'border-slate-600'
                 }`}
               >
-                <option value="">
-                  {formData.type === 'citizen' ? 'Επιλέξτε πολίτη' : 'Επιλέξτε στρατιωτικό'}
-                </option>
+                <option value="">Επιλέξτε πολίτη</option>
                 {getAvailablePersons().map(person => (
                   <option key={person.id} value={person.id}>
-                    {formData.type === 'citizen' 
-                      ? `${person.name} ${person.surname}` 
-                      : `${person.name} ${person.surname} - ${(person as any).rank || ''}`
-                    }
+                    {`${person.name} ${person.surname}`}
+                    {person.is_military && person.military_rank && ` - ${person.military_rank} (ΣΤΡΑΤ)`}
                   </option>
                 ))}
               </select>
-              {((formData.type === 'citizen' && errors.citizenId) || (formData.type === 'military' && errors.militaryId)) && (
-                <p className="mt-1 text-sm text-red-400">
-                  {formData.type === 'citizen' ? errors.citizenId : errors.militaryId}
-                </p>
+              {errors.citizenId && (
+                <p className="mt-1 text-sm text-red-400">{errors.citizenId}</p>
               )}
               {getAvailablePersons().length === 0 && (
                 <div className="mt-2 p-3 bg-yellow-600/20 border border-yellow-500/30 rounded-lg">
                   <p className="text-sm text-yellow-300">
-                    ⚠️ Δεν υπάρχουν διαθέσιμοι {formData.type === 'citizen' ? 'πολίτες' : 'στρατιωτικοί'}.
-                    <br />Παρακαλώ δημιουργήστε πρώτα {formData.type === 'citizen' ? 'έναν πολίτη' : 'έναν στρατιωτικό'} από το αντίστοιχο μενού.
+                    ⚠️ Δεν υπάρχουν διαθέσιμοι πολίτες.
+                    <br />Παρακαλώ δημιουργήστε πρώτα έναν πολίτη από το μενού Πολίτες.
                   </p>
                 </div>
               )}

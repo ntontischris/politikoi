@@ -1,29 +1,40 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
-import { 
-  Home, 
-  Users, 
-  Shield, 
-  FileText, 
-  Settings, 
-  LogOut, 
-  Menu, 
+import {
+  Home,
+  Users,
+  Shield,
+  FileText,
+  Settings,
+  LogOut,
+  Menu,
   X,
   Bell,
   Search,
   BarChart3
 } from 'lucide-react'
 import { useAuthStore } from '../stores/authStore'
+import { useUnreadCount, startNotificationRefresh, stopNotificationRefresh } from '../stores/notificationStore'
+import { NotificationDropdown } from './notifications/NotificationDropdown'
 
 export function Layout() {
   const { profile, signOut, isAdmin } = useAuthStore()
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [notificationsOpen, setNotificationsOpen] = useState(false)
+  const unreadCount = useUnreadCount()
+
+  // Start notification refresh when component mounts
+  useEffect(() => {
+    startNotificationRefresh()
+    return () => stopNotificationRefresh()
+  }, [])
 
   const navigationItems = [
     { name: 'Dashboard', href: '/dashboard', icon: Home },
     { name: 'Πολίτες', href: '/dashboard/citizens', icon: Users },
-    { name: 'Στρατιωτικό', href: '/dashboard/military', icon: Shield },
-    { name: 'ΕΣΣΟ Σύστημα', href: '/dashboard/military-esso', icon: Shield },
+    // Military-specific pages are now integrated into Citizens page with filtering
+    // { name: 'Στρατιωτικό', href: '/dashboard/military', icon: Shield },
+    // { name: 'ΕΣΣΟ Σύστημα', href: '/dashboard/military-esso', icon: Shield },
     { name: 'Αιτήματα', href: '/dashboard/requests', icon: FileText },
     { name: 'Αναφορές', href: '/dashboard/reports', icon: BarChart3 },
     ...(isAdmin() 
@@ -149,10 +160,24 @@ export function Layout() {
 
             <div className="flex items-center space-x-2 sm:space-x-4 ml-4">
               {/* Notifications */}
-              <button className="relative text-gray-400 hover:text-white touch-target flex items-center justify-center">
-                <Bell className="w-4 h-4 sm:w-5 sm:h-5" />
-                <span className="absolute -top-1 -right-1 w-2 h-2 sm:w-3 sm:h-3 bg-red-500 rounded-full"></span>
-              </button>
+              <div className="relative">
+                <button
+                  onClick={() => setNotificationsOpen(!notificationsOpen)}
+                  className="relative text-gray-400 hover:text-white touch-target flex items-center justify-center transition-colors"
+                >
+                  <Bell className="w-4 h-4 sm:w-5 sm:h-5" />
+                  {unreadCount > 0 && (
+                    <span className="absolute -top-1 -right-1 min-w-[12px] h-3 sm:min-w-[16px] sm:h-4 bg-red-500 text-white text-[10px] sm:text-xs rounded-full flex items-center justify-center font-medium">
+                      {unreadCount > 99 ? '99+' : unreadCount}
+                    </span>
+                  )}
+                </button>
+
+                <NotificationDropdown
+                  isOpen={notificationsOpen}
+                  onClose={() => setNotificationsOpen(false)}
+                />
+              </div>
 
               {/* Current date/time - responsive */}
               <div className="text-right">

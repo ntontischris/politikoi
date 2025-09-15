@@ -19,6 +19,18 @@ export interface Citizen {
   status: 'active' | 'inactive'
   created_at: string
   updated_at: string
+  // Military fields
+  is_military?: boolean
+  military_rank?: string
+  military_service_unit?: string
+  military_id?: string
+  military_esso?: string
+  military_esso_year?: string
+  military_esso_letter?: 'Α' | 'Β' | 'Γ' | 'Δ' | 'Ε' | 'ΣΤ'
+  military_wish?: string
+  military_status?: 'pending' | 'approved' | 'rejected' | 'completed'
+  military_send_date?: string
+  military_comments?: string
 }
 
 interface CitizenStore {
@@ -55,7 +67,19 @@ const transformDBCitizen = (dbCitizen: DBCitizen): Citizen => ({
   notes: dbCitizen.notes || undefined,
   status: (dbCitizen.status as 'active' | 'inactive') || 'active',
   created_at: dbCitizen.created_at,
-  updated_at: dbCitizen.updated_at
+  updated_at: dbCitizen.updated_at,
+  // Military fields
+  is_military: dbCitizen.is_military || false,
+  military_rank: dbCitizen.military_rank || undefined,
+  military_service_unit: dbCitizen.military_service_unit || undefined,
+  military_id: dbCitizen.military_id || undefined,
+  military_esso: dbCitizen.military_esso || undefined,
+  military_esso_year: dbCitizen.military_esso_year || undefined,
+  military_esso_letter: dbCitizen.military_esso_letter || undefined,
+  military_wish: dbCitizen.military_wish || undefined,
+  military_status: dbCitizen.military_status || undefined,
+  military_send_date: dbCitizen.military_send_date || undefined,
+  military_comments: dbCitizen.military_comments || undefined
 })
 
 // Helper function to transform frontend citizen to database input
@@ -72,7 +96,19 @@ const transformToDBInput = (citizen: Partial<Citizen>): Partial<CitizenInput> =>
   municipality: citizen.municipality?.trim() || null,
   electoral_district: citizen.electoralDistrict?.trim() || null,
   notes: citizen.notes?.trim() || null,
-  status: citizen.status || 'active'
+  status: citizen.status || 'active',
+  // Military fields
+  is_military: citizen.is_military || false,
+  military_rank: citizen.military_rank?.trim() || null,
+  military_service_unit: citizen.military_service_unit?.trim() || null,
+  military_id: citizen.military_id?.trim() || null,
+  military_esso: citizen.military_esso?.trim() || null,
+  military_esso_year: citizen.military_esso_year?.trim() || null,
+  military_esso_letter: citizen.military_esso_letter || null,
+  military_wish: citizen.military_wish?.trim() || null,
+  military_status: citizen.military_status || null,
+  military_send_date: citizen.military_send_date || null,
+  military_comments: citizen.military_comments?.trim() || null
 })
 
 export const useCitizenStore = create<CitizenStore>((set, get) => ({
@@ -220,7 +256,115 @@ export const useCitizenStore = create<CitizenStore>((set, get) => ({
 // Additional citizen-specific methods
 export const useCitizenActions = () => {
   const store = useCitizenStore()
-  return store
+
+  // Add military-specific methods
+  const getMilitaryPersonnel = () => {
+    return store.items.filter(citizen => citizen.is_military)
+  }
+
+  const searchMilitaryPersonnel = async (searchTerm: string) => {
+    if (!searchTerm.trim()) {
+      await store.loadItems()
+      return
+    }
+
+    store.setLoading(true)
+    store.setError(null)
+    try {
+      const searchResults = await citizensService.searchMilitaryPersonnel(searchTerm)
+      const citizens = searchResults.map(transformDBCitizen)
+      useCitizenStore.setState({
+        items: citizens,
+        isLoading: false
+      })
+    } catch (error) {
+      store.setError(error instanceof Error ? error.message : 'Σφάλμα αναζήτησης στρατιωτικού προσωπικού')
+      store.setLoading(false)
+    }
+  }
+
+  const getMilitaryPersonnelByEsso = async (essoYear?: string, essoLetter?: string) => {
+    store.setLoading(true)
+    store.setError(null)
+    try {
+      const results = await citizensService.getMilitaryPersonnelByEsso(essoYear, essoLetter)
+      const citizens = results.map(transformDBCitizen)
+      useCitizenStore.setState({
+        items: citizens,
+        isLoading: false
+      })
+    } catch (error) {
+      store.setError(error instanceof Error ? error.message : 'Σφάλμα φόρτωσης ΕΣΣΟ')
+      store.setLoading(false)
+    }
+  }
+
+  const getMilitaryEssoYears = async () => {
+    try {
+      return await citizensService.getMilitaryEssoYears()
+    } catch (error) {
+      console.error('Error getting ESSO years:', error)
+      return []
+    }
+  }
+
+  const getMilitaryStats = async () => {
+    try {
+      return await citizensService.getMilitaryStats()
+    } catch (error) {
+      console.error('Error getting military stats:', error)
+
+      // Fallback to local calculation
+      const militaryPersonnel = getMilitaryPersonnel()
+      const stats = {
+        total: militaryPersonnel.length,
+        pending: 0,
+        approved: 0,
+        rejected: 0,
+        completed: 0,
+        by_year: {} as Record<string, number>
+      }
+
+      militaryPersonnel.forEach(person => {
+        const status = person.military_status || 'pending'
+        stats[status as keyof typeof stats]++
+
+        if (person.military_esso_year) {
+          stats.by_year[person.military_esso_year] = (stats.by_year[person.military_esso_year] || 0) + 1
+        }
+      })
+
+      return stats
+    }
+  }
+
+  const getEssoGroups = () => {
+    const military = getMilitaryPersonnel()
+    const groups: Record<string, Citizen[]> = {}
+
+    military.forEach(person => {
+      if (person.military_esso) {
+        const key = `${person.military_esso_year || ''}-${person.military_esso_letter || ''}`
+        if (!groups[key]) {
+          groups[key] = []
+        }
+        groups[key].push(person)
+      }
+    })
+
+    return groups
+  }
+
+  return {
+    ...store,
+    // Military-specific methods
+    getMilitaryPersonnel,
+    searchMilitaryPersonnel,
+    getMilitaryPersonnelByEsso,
+    getMilitaryEssoYears,
+    getMilitaryStats,
+    getEssoGroups
+  }
 }
 
 // Convenience hook for single citizen

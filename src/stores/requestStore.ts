@@ -5,7 +5,6 @@ import { requestsService, type Request as DBRequest, type RequestInput, type Req
 export interface Request {
   id: string
   citizenId?: string
-  militaryPersonnelId?: string
   requestType: string
   description: string
   status: 'pending' | 'in-progress' | 'completed' | 'rejected'
@@ -22,11 +21,8 @@ export interface RequestWithDetails extends Request {
     name: string
     surname: string
     municipality?: string
-  }
-  militaryPersonnel?: {
-    name: string
-    surname: string
-    rank?: string
+    is_military?: boolean
+    military_rank?: string
   }
 }
 
@@ -34,7 +30,6 @@ export interface RequestWithDetails extends Request {
 const transformDBRequest = (dbRequest: DBRequest): Request => ({
   id: dbRequest.id,
   citizenId: dbRequest.citizen_id || undefined,
-  militaryPersonnelId: dbRequest.military_personnel_id || undefined,
   requestType: dbRequest.request_type,
   description: dbRequest.description,
   status: (dbRequest.status as Request['status']) || 'pending',
@@ -49,14 +44,12 @@ const transformDBRequest = (dbRequest: DBRequest): Request => ({
 // Helper function for detailed requests
 const transformDBRequestWithDetails = (dbRequest: RequestWithDetails): RequestWithDetails => ({
   ...transformDBRequest(dbRequest),
-  citizen: dbRequest.citizens || undefined,
-  militaryPersonnel: dbRequest.military_personnel || undefined
+  citizen: dbRequest.citizens || undefined
 })
 
 // Helper function to transform frontend to database input
 const transformToDBInput = (request: Partial<Request>): Partial<RequestInput> => ({
   citizen_id: request.citizenId || null,
-  military_personnel_id: request.militaryPersonnelId || null,
   request_type: request.requestType || '',
   description: request.description || '',
   status: request.status || 'pending',
@@ -90,13 +83,13 @@ export const useRequestActions = () => {
   return {
     ...store,
     
-    // Get requests with citizen/military details
+    // Get requests with citizen details
     getRequestsWithDetails: async () => {
       try {
         store.setLoading(true)
-        const detailedRequests = await requestsService.getRequestsWithDetails()
+        const detailedRequests = await requestsService.getAllRequests()
         const transformed = detailedRequests.map(transformDBRequestWithDetails)
-        
+
         // Don't cache detailed requests, they're for viewing only
         return transformed
       } catch (error) {
@@ -107,24 +100,29 @@ export const useRequestActions = () => {
       }
     },
     
-    // Search functionality
+    // Search functionality - simplified since we don't have searchRequests method
     searchRequests: async (searchTerm: string) => {
       if (!searchTerm.trim()) {
         return store.loadItems()
       }
-      
+
       try {
         store.setLoading(true)
         store.setError(null)
-        
-        const searchResults = await requestsService.searchRequests(searchTerm)
+
+        // For now, filter locally until we implement server-side search
+        const allRequests = await requestsService.getAllRequests()
+        const searchResults = allRequests.filter(req =>
+          req.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          req.request_type.toLowerCase().includes(searchTerm.toLowerCase())
+        )
         const transformedResults = searchResults.map(transformDBRequest)
-        
-        useRequestStore.setState({ 
+
+        useRequestStore.setState({
           items: transformedResults,
-          isLoading: false 
+          isLoading: false
         })
-        
+
       } catch (error) {
         store.setError(error instanceof Error ? error.message : 'Σφάλμα αναζήτησης')
         store.setLoading(false)
@@ -157,13 +155,13 @@ export const useRequestActions = () => {
       }
     },
     
-    // Filter by military personnel
-    getRequestsByMilitary: async (militaryId: string) => {
+    // Get requests by military personnel (now just citizens with is_military = true)
+    getRequestsByMilitary: async (citizenId: string) => {
       try {
         store.setLoading(true)
-        const requests = await requestsService.getRequestsByMilitary(militaryId)
+        const requests = await requestsService.getRequestsByCitizen(citizenId)
         const transformed = requests.map(transformDBRequest)
-        
+
         return transformed
       } catch (error) {
         store.setError(error instanceof Error ? error.message : 'Σφάλμα φόρτωσης αιτημάτων στρατιωτικού')

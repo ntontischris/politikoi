@@ -23,6 +23,18 @@ export interface Citizen {
   created_at: string
   updated_at: string
   created_by?: string | null
+  // Military fields
+  is_military?: boolean
+  military_rank?: string | null
+  military_service_unit?: string | null
+  military_id?: string | null
+  military_esso?: string | null
+  military_esso_year?: string | null
+  military_esso_letter?: 'Α' | 'Β' | 'Γ' | 'Δ' | 'Ε' | 'ΣΤ' | null
+  military_wish?: string | null
+  military_status?: 'pending' | 'approved' | 'rejected' | 'completed' | null
+  military_send_date?: string | null
+  military_comments?: string | null
 }
 
 export type CitizenInput = Omit<Citizen, 'id' | 'created_at' | 'updated_at'>
@@ -200,6 +212,139 @@ export class CitizensService extends BaseService {
     } catch (error) {
       console.error('Error getting citizen stats:', error)
       return { total: 0, active: 0, inactive: 0, recent: 0 }
+    }
+  }
+
+  // Military-specific methods
+  async getMilitaryPersonnel(): Promise<Citizen[]> {
+    try {
+      const { data, error } = await supabase
+        .from('citizens')
+        .select('*')
+        .eq('is_military', true)
+        .order('created_at', { ascending: false })
+
+      if (error) this.handleError(error, 'φόρτωση στρατιωτικού προσωπικού')
+
+      return data || []
+    } catch (error) {
+      this.handleError(error as Error, 'φόρτωση στρατιωτικού προσωπικού')
+      return []
+    }
+  }
+
+  async getMilitaryPersonnelByEsso(essoYear?: string, essoLetter?: string): Promise<Citizen[]> {
+    try {
+      let query = supabase
+        .from('citizens')
+        .select('*')
+        .eq('is_military', true)
+
+      if (essoYear) {
+        query = query.eq('military_esso_year', essoYear)
+      }
+
+      if (essoLetter) {
+        query = query.eq('military_esso_letter', essoLetter)
+      }
+
+      const { data, error } = await query.order('created_at', { ascending: false })
+
+      if (error) this.handleError(error, 'φόρτωση ΕΣΣΟ')
+
+      return data || []
+    } catch (error) {
+      this.handleError(error as Error, 'φόρτωση ΕΣΣΟ')
+      return []
+    }
+  }
+
+  async getMilitaryEssoYears(): Promise<string[]> {
+    try {
+      const { data, error } = await supabase
+        .from('citizens')
+        .select('military_esso_year')
+        .eq('is_military', true)
+        .not('military_esso_year', 'is', null)
+        .order('military_esso_year', { ascending: false })
+
+      if (error) this.handleError(error, 'φόρτωση ετών ΕΣΣΟ')
+
+      const uniqueYears = [...new Set((data || []).map(item => item.military_esso_year!))]
+      return uniqueYears
+    } catch (error) {
+      this.handleError(error as Error, 'φόρτωση ετών ΕΣΣΟ')
+      return []
+    }
+  }
+
+  async searchMilitaryPersonnel(searchTerm: string): Promise<Citizen[]> {
+    try {
+      if (!searchTerm.trim()) {
+        return this.getMilitaryPersonnel()
+      }
+
+      const { data, error } = await supabase
+        .from('citizens')
+        .select('*')
+        .eq('is_military', true)
+        .or(`name.ilike.%${searchTerm}%,surname.ilike.%${searchTerm}%,military_id.ilike.%${searchTerm}%,military_esso.ilike.%${searchTerm}%,military_esso_year.ilike.%${searchTerm}%`)
+        .order('created_at', { ascending: false })
+
+      if (error) this.handleError(error, 'αναζήτηση στρατιωτικού προσωπικού')
+
+      return data || []
+    } catch (error) {
+      this.handleError(error as Error, 'αναζήτηση στρατιωτικού προσωπικού')
+      return []
+    }
+  }
+
+  async getMilitaryStats(): Promise<{
+    total: number
+    pending: number
+    approved: number
+    rejected: number
+    completed: number
+    by_year: Record<string, number>
+  }> {
+    try {
+      const { data: military, error } = await supabase
+        .from('citizens')
+        .select('military_status, military_esso_year')
+        .eq('is_military', true)
+
+      if (error) this.handleError(error, 'φόρτωση στατιστικών στρατιωτικών')
+
+      const stats = {
+        total: military?.length || 0,
+        pending: 0,
+        approved: 0,
+        rejected: 0,
+        completed: 0,
+        by_year: {} as Record<string, number>
+      }
+
+      military?.forEach(person => {
+        const status = person.military_status || 'pending'
+        stats[status as keyof typeof stats]++
+
+        if (person.military_esso_year) {
+          stats.by_year[person.military_esso_year] = (stats.by_year[person.military_esso_year] || 0) + 1
+        }
+      })
+
+      return stats
+    } catch (error) {
+      console.error('Error getting military stats:', error)
+      return {
+        total: 0,
+        pending: 0,
+        approved: 0,
+        rejected: 0,
+        completed: 0,
+        by_year: {}
+      }
     }
   }
 }
