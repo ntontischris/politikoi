@@ -69,7 +69,7 @@ export class CommunicationService extends BaseService {
   async getCommunicationDatesByCitizen(citizenId: string): Promise<CommunicationDate[]> {
     try {
       this.validateId(citizenId)
-      
+
       const { data, error } = await supabase
         .from('citizen_communication_dates')
         .select('*')
@@ -77,11 +77,37 @@ export class CommunicationService extends BaseService {
         .order('communication_date', { ascending: false })
 
       if (error) this.handleError(error, 'φόρτωση ημερομηνιών επικοινωνίας πολίτη')
-      
+
       return data || []
     } catch (error) {
       this.handleError(error as Error, 'φόρτωση ημερομηνιών επικοινωνίας πολίτη')
     }
+  }
+
+  // Alias για συμβατότητα με το store
+  async getCommunicationsByCitizen(citizenId: string): Promise<CommunicationDate[]> {
+    return this.getCommunicationDatesByCitizen(citizenId)
+  }
+
+  // Aliases για service adapter
+  async getAllCommunications(): Promise<CommunicationDateWithCitizen[]> {
+    return this.getAllCommunicationDates()
+  }
+
+  async createCommunication(data: CommunicationDateInput): Promise<CommunicationDate> {
+    return this.createCommunicationDate(data)
+  }
+
+  async updateCommunication(id: string, data: Partial<CommunicationDateInput>): Promise<CommunicationDate> {
+    return this.updateCommunicationDate(id, data)
+  }
+
+  async deleteCommunication(id: string): Promise<void> {
+    return this.deleteCommunicationDate(id)
+  }
+
+  async getCommunicationsWithCitizen(): Promise<CommunicationDateWithCitizen[]> {
+    return this.getAllCommunicationDates()
   }
 
   async createCommunicationDate(communicationData: CommunicationDateInput): Promise<CommunicationDate> {

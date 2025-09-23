@@ -68,7 +68,7 @@ export const RequestTimeline: React.FC<RequestTimelineProps> = ({
   const [viewingRequest, setViewingRequest] = useState<Request | null>(null)
 
   // Filter requests for this citizen
-  const citizenRequests = requests
+  const citizenRequests = (requests || [])
     .filter(request => request.relatedCitizenId === citizenId)
     .sort((a, b) => new Date(b.submissionDate).getTime() - new Date(a.submissionDate).getTime())
 

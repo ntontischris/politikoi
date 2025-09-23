@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { Phone, Mail, Users, Calendar, FileText, Plus, Edit, Trash2, Clock } from 'lucide-react'
-import { useCommunicationStore, type CommunicationDate } from '../../stores/communicationStore'
+import { useCommunicationStore, useCommunicationActions, type CommunicationDate } from '../../stores/communicationStore'
 import { CommunicationForm } from '../forms/CommunicationForm'
 
 interface CommunicationTimelineProps {
@@ -9,6 +9,10 @@ interface CommunicationTimelineProps {
 }
 
 const communicationIcons = {
+  'phone': Phone,
+  'email': Mail,
+  'meeting': Users,
+  'other': Calendar,
   'ΤΗΛΕΦΩΝΙΚΗ': Phone,
   'EMAIL': Mail,
   'ΠΡΟΣΩΠΙΚΗ': Users,
@@ -17,35 +21,46 @@ const communicationIcons = {
 }
 
 const communicationLabels = {
+  'phone': 'Τηλέφωνο',
+  'email': 'Email',
+  'meeting': 'Συνάντηση',
+  'other': 'Άλλο',
   'ΤΗΛΕΦΩΝΙΚΗ': 'Τηλεφωνική',
-  'EMAIL': 'Email',  
+  'EMAIL': 'Email',
   'ΠΡΟΣΩΠΙΚΗ': 'Προσωπική',
   'SMS': 'SMS',
   'ΓΕΝΙΚΗ': 'Γενική'
 }
 
-export const CommunicationTimeline: React.FC<CommunicationTimelineProps> = ({ 
-  citizenId, 
-  citizenName 
+export const CommunicationTimeline: React.FC<CommunicationTimelineProps> = ({
+  citizenId,
+  citizenName
 }) => {
-  const { 
-    getCommunicationsByCitizen, 
-    getLastCommunicationByCitizen,
-    loadCommunicationsByCitizen,
-    deleteCommunication,
-    error 
-  } = useCommunicationStore()
+  const store = useCommunicationStore()
+  const actions = useCommunicationActions()
 
   const [showForm, setShowForm] = useState(false)
   const [editingCommunication, setEditingCommunication] = useState<CommunicationDate | null>(null)
+  const [communications, setCommunications] = useState<CommunicationDate[]>([])
 
   // Load communications on mount
   useEffect(() => {
-    loadCommunicationsByCitizen(citizenId)
+    const loadData = async () => {
+      try {
+        const citizenComms = await actions.getCommunicationsByCitizen(citizenId)
+        setCommunications(citizenComms)
+      } catch (error) {
+        console.error('Error loading communications:', error)
+      }
+    }
+
+    loadData()
   }, [citizenId])
 
-  const communications = getCommunicationsByCitizen(citizenId)
-  const lastCommunication = getLastCommunicationByCitizen(citizenId)
+  // Filter communications from store items (fallback)
+  const storeComms = (store.items || []).filter(comm => comm.citizenId === citizenId)
+  const displayComms = communications.length > 0 ? communications : storeComms
+  const lastCommunication = displayComms.length > 0 ? displayComms[0] : null
 
   const handleEdit = (communication: CommunicationDate) => {
     setEditingCommunication(communication)
@@ -55,7 +70,10 @@ export const CommunicationTimeline: React.FC<CommunicationTimelineProps> = ({
   const handleDelete = async (communication: CommunicationDate) => {
     if (window.confirm('Είστε σίγουροι ότι θέλετε να διαγράψετε αυτή την επικοινωνία;')) {
       try {
-        await deleteCommunication(communication.id)
+        await store.deleteItem(communication.id)
+        // Reload communications after deletion
+        const citizenComms = await actions.getCommunicationsByCitizen(citizenId)
+        setCommunications(citizenComms)
       } catch (error) {
         console.error('Σφάλμα κατά τη διαγραφή:', error)
       }
@@ -116,22 +134,22 @@ export const CommunicationTimeline: React.FC<CommunicationTimelineProps> = ({
         <div className="mb-6 responsive-padding bg-gradient-to-r from-blue-500/10 to-purple-500/10 border border-blue-500/20 rounded-lg">
           <h4 className="text-sm font-medium text-blue-300 mb-2">Τελευταία Επικοινωνία</h4>
           <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-            {React.createElement(communicationIcons[lastCommunication.communication_type], { 
-              className: "w-4 h-4 text-blue-400" 
+            {React.createElement(communicationIcons[lastCommunication.communicationType] || communicationIcons['ΓΕΝΙΚΗ'], {
+              className: "w-4 h-4 text-blue-400"
             })}
             <span className="text-white font-medium">
-              {communicationLabels[lastCommunication.communication_type]}
+              {communicationLabels[lastCommunication.communicationType] || 'Γενική'}
             </span>
             <span className="text-slate-400">•</span>
             <span className="text-slate-300">
-              {getTimeAgo(lastCommunication.communication_date)}
+              {getTimeAgo(lastCommunication.contactDate)}
             </span>
           </div>
         </div>
       )}
 
       {/* Timeline */}
-      {communications.length === 0 ? (
+      {displayComms.length === 0 ? (
         <div className="text-center py-8">
           <Clock className="w-12 h-12 text-slate-600 mx-auto mb-4" />
           <p className="text-slate-400 mb-4">Δεν υπάρχουν καταγεγραμμένες επικοινωνίες</p>
@@ -144,9 +162,9 @@ export const CommunicationTimeline: React.FC<CommunicationTimelineProps> = ({
         </div>
       ) : (
         <div className="space-y-4">
-          {communications.map((communication, index) => {
-            const IconComponent = communicationIcons[communication.communication_type]
-            const isLast = index === communications.length - 1
+          {displayComms.map((communication, index) => {
+            const IconComponent = communicationIcons[communication.communicationType] || communicationIcons['other']
+            const isLast = index === displayComms.length - 1
 
             return (
               <div key={communication.id} className="relative">
@@ -167,17 +185,22 @@ export const CommunicationTimeline: React.FC<CommunicationTimelineProps> = ({
                       <div className="flex-1">
                         <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-2">
                           <h4 className="font-medium text-white">
-                            {communicationLabels[communication.communication_type]}
+                            {communicationLabels[communication.communicationType] || 'Άλλο'}
                           </h4>
                           <span className="text-sm text-slate-400">
-                            {formatDate(communication.communication_date)}
+                            {formatDate(communication.contactDate)}
                           </span>
                           <span className="text-xs text-slate-500">
-                            {getTimeAgo(communication.communication_date)}
+                            {getTimeAgo(communication.contactDate)}
                           </span>
                         </div>
-                        {communication.notes && (
+                        {communication.description && (
                           <p className="text-slate-300 text-sm leading-relaxed">
+                            {communication.description}
+                          </p>
+                        )}
+                        {communication.notes && (
+                          <p className="text-slate-400 text-xs mt-2">
                             {communication.notes}
                           </p>
                         )}
@@ -208,9 +231,9 @@ export const CommunicationTimeline: React.FC<CommunicationTimelineProps> = ({
       )}
 
       {/* Error Display */}
-      {error && (
+      {store.error && (
         <div className="mt-4 p-4 bg-red-900/20 border border-red-800 rounded-lg">
-          <p className="text-red-300 text-sm">{error}</p>
+          <p className="text-red-300 text-sm">{store.error}</p>
         </div>
       )}
 

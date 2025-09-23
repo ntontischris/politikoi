@@ -56,6 +56,26 @@ export function Dashboard() {
   const [analyticsData, setAnalyticsData] = useState<any>(null)
   const navigate = useNavigate()
 
+  // Navigation handlers για τις κάρτες
+  const handleCardClick = (cardType: string) => {
+    switch (cardType) {
+      case 'citizens':
+        navigate('/dashboard/citizens')
+        break
+      case 'requests':
+        navigate('/dashboard/requests')
+        break
+      case 'military':
+        navigate('/dashboard/military')
+        break
+      case 'completed-requests':
+        navigate('/dashboard/requests?filter=completed')
+        break
+      default:
+        break
+    }
+  }
+
   // Load data from Supabase on component mount
   useEffect(() => {
     let isMounted = true // Track if component is still mounted
@@ -285,7 +305,8 @@ export function Dashboard() {
       bgColor: 'bg-blue-500/20',
       borderColor: 'border-blue-500/30',
       growth: `+${growthRates.citizensGrowth}%`,
-      subtitle: `${stats.activeCitizens} ενεργοί`
+      subtitle: `${stats.activeCitizens} ενεργοί`,
+      navigationKey: 'citizens'
     },
     {
       title: 'Συνολικά Αιτήματα',
@@ -295,7 +316,8 @@ export function Dashboard() {
       bgColor: 'bg-green-500/20',
       borderColor: 'border-green-500/30',
       growth: `+${growthRates.requestsGrowth}%`,
-      subtitle: `${stats.pendingRequests} εκκρεμή`
+      subtitle: `${stats.pendingRequests} εκκρεμή`,
+      navigationKey: 'requests'
     },
     {
       title: 'Στρατιωτικό Προσωπικό',
@@ -305,7 +327,8 @@ export function Dashboard() {
       bgColor: 'bg-yellow-500/20',
       borderColor: 'border-yellow-500/30',
       growth: `+${growthRates.militaryGrowth}%`,
-      subtitle: 'Σύνολο εγγραφών'
+      subtitle: 'Σύνολο εγγραφών',
+      navigationKey: 'military'
     },
     {
       title: 'Ολοκληρωμένα Αιτήματα',
@@ -315,7 +338,8 @@ export function Dashboard() {
       bgColor: 'bg-purple-500/20',
       borderColor: 'border-purple-500/30',
       growth: '-8.2%',
-      subtitle: `από ${stats.totalRequests} συνολικά`
+      subtitle: `από ${stats.totalRequests} συνολικά`,
+      navigationKey: 'completed-requests'
     }
   ]
 
@@ -365,7 +389,8 @@ export function Dashboard() {
         {statCards.map((card, index) => (
           <div
             key={index}
-            className={`bg-slate-800 border ${card.borderColor} rounded-xl p-4 sm:p-6 hover:bg-slate-700/50 transition-all duration-300 transform hover:scale-105`}
+            onClick={() => handleCardClick(card.navigationKey)}
+            className={`bg-slate-800 border ${card.borderColor} rounded-xl p-4 sm:p-6 hover:bg-slate-700/50 transition-all duration-300 transform hover:scale-105 cursor-pointer`}
           >
             <div className="flex items-center justify-between mb-3 sm:mb-4">
               <div className={`p-2 sm:p-3 rounded-lg ${card.bgColor} flex-shrink-0`}>
