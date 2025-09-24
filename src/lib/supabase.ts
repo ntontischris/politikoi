@@ -31,14 +31,14 @@ export interface Citizen {
   afm?: string | null
   recommendation_from?: string
   patronymic?: string
-  mobile_phone?: string
-  landline_phone?: string
+  phone?: string
+  landline?: string
   email?: string
   address?: string
-  postal_code?: string
+  postalCode?: string
   municipality?: 'ΠΑΥΛΟΥ ΜΕΛΑ' | 'ΚΟΡΔΕΛΙΟΥ-ΕΥΟΣΜΟΥ' | 'ΑΜΠΕΛΟΚΗΠΩΝ-ΜΕΝΕΜΕΝΗΣ' | 'ΝΕΑΠΟΛΗΣ-ΣΥΚΕΩΝ' | 'ΘΕΣΣΑΛΟΝΙΚΗΣ' | 'ΚΑΛΑΜΑΡΙΑΣ' | 'ΑΛΛΟ'
   area?: string
-  electoral_district?: 'Α ΘΕΣΣΑΛΟΝΙΚΗΣ' | 'Β ΘΕΣΣΑΛΟΝΙΚΗΣ'
+  electoralDistrict?: 'Α ΘΕΣΣΑΛΟΝΙΚΗΣ' | 'Β ΘΕΣΣΑΛΟΝΙΚΗΣ'
   last_contact_date?: string
   notes?: string
   status?: 'active' | 'inactive'

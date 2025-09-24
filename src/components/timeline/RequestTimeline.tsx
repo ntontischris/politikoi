@@ -1,6 +1,6 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { FileText, AlertTriangle, Plus, Edit, Trash2, Clock, CheckCircle, XCircle, AlertCircle } from 'lucide-react'
-import { useRequestStore, type Request } from '../../stores/requestStore'
+import { useRequestStore, useRequestActions, type Request } from '../../stores/requestStore'
 import { RequestForm } from '../forms/RequestForm'
 import { RequestViewModal } from '../modals/RequestViewModal'
 
@@ -8,33 +8,37 @@ interface RequestTimelineProps {
   citizenId: string
   citizenName?: string
   showAddButton?: boolean
+  onRequestFormOpen?: (citizenId: string) => void
 }
 
 const statusIcons = {
-  submitted: Clock,
-  in_progress: AlertCircle,
-  pending_review: AlertTriangle,
-  approved: CheckCircle,
+  pending: Clock,
+  'in-progress': AlertCircle,
+  completed: CheckCircle,
   rejected: XCircle,
-  completed: CheckCircle
+  'ΕΚΚΡΕΜΕΙ': Clock,
+  'ΟΛΟΚΛΗΡΩΘΗΚΕ': CheckCircle,
+  'ΑΠΟΡΡΙΦΘΗΚΕ': XCircle
 }
 
 const statusLabels = {
-  submitted: 'Υποβληθείσα',
-  in_progress: 'Σε Εξέλιξη',
-  pending_review: 'Αναμονή Αξιολόγησης',
-  approved: 'Εγκεκριμένο',
+  pending: 'Εκκρεμές',
+  'in-progress': 'Σε Εξέλιξη',
+  completed: 'Ολοκληρωμένο',
   rejected: 'Απορρίφθηκε',
-  completed: 'Ολοκληρώθηκε'
+  'ΕΚΚΡΕΜΕΙ': 'Εκκρεμές',
+  'ΟΛΟΚΛΗΡΩΘΗΚΕ': 'Ολοκληρωμένο',
+  'ΑΠΟΡΡΙΦΘΗΚΕ': 'Απορρίφθηκε'
 }
 
 const statusColors = {
-  submitted: 'text-blue-400',
-  in_progress: 'text-yellow-400',
-  pending_review: 'text-orange-400',
-  approved: 'text-green-400',
+  pending: 'text-blue-400',
+  'in-progress': 'text-yellow-400',
+  completed: 'text-emerald-400',
   rejected: 'text-red-400',
-  completed: 'text-emerald-400'
+  'ΕΚΚΡΕΜΕΙ': 'text-blue-400',
+  'ΟΛΟΚΛΗΡΩΘΗΚΕ': 'text-emerald-400',
+  'ΑΠΟΡΡΙΦΘΗΚΕ': 'text-red-400'
 }
 
 const priorityColors = {
@@ -51,26 +55,36 @@ const priorityLabels = {
   urgent: 'Επείγουσα'
 }
 
-export const RequestTimeline: React.FC<RequestTimelineProps> = ({ 
-  citizenId, 
+export const RequestTimeline: React.FC<RequestTimelineProps> = ({
+  citizenId,
   citizenName,
-  showAddButton = true
+  showAddButton = true,
+  onRequestFormOpen
 }) => {
-  const { 
-    requests, 
-    deleteRequest,
-    error 
+  const {
+    items: requests,
+    error,
+    loadItems: loadRequests
   } = useRequestStore()
+
+  const {
+    deleteItem: deleteRequest
+  } = useRequestActions()
 
   const [showForm, setShowForm] = useState(false)
   const [showViewModal, setShowViewModal] = useState(false)
   const [editingRequest, setEditingRequest] = useState<Request | null>(null)
   const [viewingRequest, setViewingRequest] = useState<Request | null>(null)
 
+  // Load requests when component mounts
+  useEffect(() => {
+    loadRequests()
+  }, [])
+
   // Filter requests for this citizen
   const citizenRequests = (requests || [])
-    .filter(request => request.relatedCitizenId === citizenId)
-    .sort((a, b) => new Date(b.submissionDate).getTime() - new Date(a.submissionDate).getTime())
+    .filter(request => request.citizenId === citizenId)
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
 
   const handleEdit = (request: Request) => {
     setEditingRequest(request)
@@ -125,18 +139,20 @@ export const RequestTimeline: React.FC<RequestTimelineProps> = ({
   }
 
   const getProgressWidth = (request: Request) => {
-    const statusOrder = ['submitted', 'in_progress', 'pending_review', 'approved', 'completed']
+    const statusOrder = ['pending', 'in-progress', 'completed']
     const currentIndex = statusOrder.indexOf(request.status)
-    if (request.status === 'rejected') return '100%'
+    if (request.status === 'rejected' || request.status === 'ΑΠΟΡΡΙΦΘΗΚΕ') return '100%'
+    if (request.status === 'completed' || request.status === 'ΟΛΟΚΛΗΡΩΘΗΚΕ') return '100%'
+    if (currentIndex === -1) return '33%' // Default for unknown status
     return `${((currentIndex + 1) / statusOrder.length) * 100}%`
   }
 
   // Statistics
   const stats = {
     total: citizenRequests.length,
-    completed: citizenRequests.filter(r => r.status === 'completed').length,
-    inProgress: citizenRequests.filter(r => r.status === 'in_progress').length,
-    pending: citizenRequests.filter(r => ['submitted', 'pending_review'].includes(r.status)).length
+    completed: citizenRequests.filter(r => r.status === 'completed' || r.status === 'ΟΛΟΚΛΗΡΩΘΗΚΕ').length,
+    inProgress: citizenRequests.filter(r => r.status === 'in-progress').length,
+    pending: citizenRequests.filter(r => r.status === 'pending' || r.status === 'ΕΚΚΡΕΜΕΙ').length
   }
 
   return (
@@ -154,7 +170,13 @@ export const RequestTimeline: React.FC<RequestTimelineProps> = ({
         </div>
         {showAddButton && (
           <button
-            onClick={() => setShowForm(true)}
+            onClick={() => {
+              if (onRequestFormOpen) {
+                onRequestFormOpen(citizenId)
+              } else {
+                setShowForm(true)
+              }
+            }}
             className="flex items-center justify-center space-x-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors touch-target w-full sm:w-auto"
           >
             <Plus className="w-4 h-4" />
@@ -202,7 +224,7 @@ export const RequestTimeline: React.FC<RequestTimelineProps> = ({
       ) : (
         <div className="space-y-6">
           {citizenRequests.map((request, index) => {
-            const StatusIcon = statusIcons[request.status]
+            const StatusIcon = statusIcons[request.status] || Clock
             const isLast = index === citizenRequests.length - 1
 
             return (
@@ -215,7 +237,7 @@ export const RequestTimeline: React.FC<RequestTimelineProps> = ({
                 <div className="flex items-start space-x-3 sm:space-x-4 group">
                   {/* Timeline dot */}
                   <div className="flex-shrink-0 w-10 sm:w-12 h-10 sm:h-12 bg-slate-700 border-2 border-slate-600 rounded-full flex items-center justify-center">
-                    <StatusIcon className={`w-4 sm:w-5 h-4 sm:h-5 ${statusColors[request.status]}`} />
+                    <StatusIcon className={`w-4 sm:w-5 h-4 sm:h-5 ${statusColors[request.status] || 'text-gray-400'}`} />
                   </div>
 
                   {/* Content */}
@@ -226,10 +248,10 @@ export const RequestTimeline: React.FC<RequestTimelineProps> = ({
                         <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-2">
                           <h4 className="font-medium text-white cursor-pointer hover:text-blue-400 transition-colors"
                               onClick={() => handleView(request)}>
-                            {request.title}
+                            {request.requestType}
                           </h4>
-                          <span className={`px-2 py-1 text-xs font-medium rounded-full bg-slate-800 ${statusColors[request.status]}`}>
-                            {statusLabels[request.status]}
+                          <span className={`px-2 py-1 text-xs font-medium rounded-full bg-slate-800 ${statusColors[request.status] || 'text-gray-400'}`}>
+                            {statusLabels[request.status] || request.status}
                           </span>
                           <span className={`text-xs font-medium ${priorityColors[request.priority]}`}>
                             {priorityLabels[request.priority]}
@@ -237,11 +259,9 @@ export const RequestTimeline: React.FC<RequestTimelineProps> = ({
                         </div>
                         
                         <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-xs sm:text-sm text-slate-400 mb-3">
-                          <span>{request.category}</span>
+                          <span>{formatDate(request.created_at)}</span>
                           <span>•</span>
-                          <span>{formatDate(request.submissionDate)}</span>
-                          <span>•</span>
-                          <span>{getTimeAgo(request.submissionDate)}</span>
+                          <span>{getTimeAgo(request.created_at)}</span>
                         </div>
 
                         {/* Progress Bar */}
@@ -300,14 +320,9 @@ export const RequestTimeline: React.FC<RequestTimelineProps> = ({
                     {/* Footer Info */}
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mt-3 pt-3 border-t border-slate-600 space-y-1 sm:space-y-0">
                       <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-xs text-slate-400">
-                        <span>Τμήμα: {request.department}</span>
-                        {request.assignedTo && <span>Ανατέθηκε: {request.assignedTo}</span>}
+                        <span>Κατάσταση: {statusLabels[request.status] || request.status}</span>
+                        {request.notes && <span>Σημειώσεις: {request.notes}</span>}
                       </div>
-                      {request.estimatedDays && (
-                        <div className="text-xs text-slate-400">
-                          Εκτιμώμενες μέρες: {request.estimatedDays}
-                        </div>
-                      )}
                     </div>
                   </div>
                 </div>
@@ -324,8 +339,8 @@ export const RequestTimeline: React.FC<RequestTimelineProps> = ({
         </div>
       )}
 
-      {/* Request Form Modal */}
-      {showForm && (
+      {/* Request Form Modal - Only show if no external handler */}
+      {showForm && !onRequestFormOpen && (
         <RequestForm
           request={editingRequest}
           defaultCitizenId={citizenId}

@@ -4,34 +4,47 @@ import { supabase } from '../lib/supabase'
 // Type definitions based on your database schema
 export interface Citizen {
   id: string
-  surname: string
+  // Required fields
   name: string
+  surname: string
+  // Optional fields
   afm?: string | null
-  recommendation_from?: string | null
+  recommendation?: string | null
   patronymic?: string | null
-  mobile_phone?: string | null
-  landline_phone?: string | null
+  phone?: string | null
+  landline?: string | null
   email?: string | null
   address?: string | null
-  postal_code?: string | null
+  postalCode?: string | null
   municipality?: string | null
-  area?: string | null
-  electoral_district?: string | null
-  last_contact_date?: string | null
+  area?: string | null // Keep for backwards compatibility
+  region?: string | null
+  electoralDistrict?: string | null
+  position?: string | null
+  contactCategory?: string | null
+  requestCategory?: string | null
+  addedDate?: string | null
+  assignedCollaborator?: string | null
+  status?: string | null
+  completionDate?: string | null
+  responsibleAuthority?: string | null
+  request?: string | null
+  observations?: string | null
+  comment?: string | null
   notes?: string | null
-  status?: 'active' | 'inactive'
+  last_contact_date?: string | null
   created_at: string
   updated_at: string
   created_by?: string | null
-  // Military fields
-  is_military?: boolean
-  military_rank?: string | null
-  military_service_unit?: string | null
+  // Military fields with new naming
+  isMilitary?: boolean
+  militaryRank?: string | null
+  militaryServiceUnit?: string | null
   military_id?: string | null
-  military_esso?: string | null
+  militaryEsso?: string | null
   military_esso_year?: string | null
   military_esso_letter?: 'Α' | 'Β' | 'Γ' | 'Δ' | 'Ε' | 'ΣΤ' | null
-  military_wish?: string | null
+  militaryDesire?: string | null
   military_status?: 'pending' | 'approved' | 'rejected' | 'completed' | null
   military_send_date?: string | null
   military_comments?: string | null
@@ -168,7 +181,7 @@ export class CitizensService extends BaseService {
       const { data, error } = await supabase
         .from('citizens')
         .select('*')
-        .or(`name.ilike.%${searchTerm}%,surname.ilike.%${searchTerm}%,mobile_phone.ilike.%${searchTerm}%,landline_phone.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%,afm.ilike.%${searchTerm}%`)
+        .or(`name.ilike.%${searchTerm}%,surname.ilike.%${searchTerm}%,phone.ilike.%${searchTerm}%,landline.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%,afm.ilike.%${searchTerm}%`)
         .order('created_at', { ascending: false })
 
       if (error) this.handleError(error, 'αναζήτηση πολιτών')
@@ -221,7 +234,7 @@ export class CitizensService extends BaseService {
       const { data, error } = await supabase
         .from('citizens')
         .select('*')
-        .eq('is_military', true)
+        .eq('"isMilitary"', true)
         .order('created_at', { ascending: false })
 
       if (error) this.handleError(error, 'φόρτωση στρατιωτικού προσωπικού')
@@ -238,7 +251,7 @@ export class CitizensService extends BaseService {
       let query = supabase
         .from('citizens')
         .select('*')
-        .eq('is_military', true)
+        .eq('"isMilitary"', true)
 
       if (essoYear) {
         query = query.eq('military_esso_year', essoYear)
@@ -264,7 +277,7 @@ export class CitizensService extends BaseService {
       const { data, error } = await supabase
         .from('citizens')
         .select('military_esso_year')
-        .eq('is_military', true)
+        .eq('"isMilitary"', true)
         .not('military_esso_year', 'is', null)
         .order('military_esso_year', { ascending: false })
 
@@ -287,8 +300,8 @@ export class CitizensService extends BaseService {
       const { data, error } = await supabase
         .from('citizens')
         .select('*')
-        .eq('is_military', true)
-        .or(`name.ilike.%${searchTerm}%,surname.ilike.%${searchTerm}%,military_id.ilike.%${searchTerm}%,military_esso.ilike.%${searchTerm}%,military_esso_year.ilike.%${searchTerm}%`)
+        .eq('"isMilitary"', true)
+        .or(`name.ilike.%${searchTerm}%,surname.ilike.%${searchTerm}%,military_id.ilike.%${searchTerm}%,"militaryEsso".ilike.%${searchTerm}%,military_esso_year.ilike.%${searchTerm}%`)
         .order('created_at', { ascending: false })
 
       if (error) this.handleError(error, 'αναζήτηση στρατιωτικού προσωπικού')
@@ -312,7 +325,7 @@ export class CitizensService extends BaseService {
       const { data: military, error } = await supabase
         .from('citizens')
         .select('military_status, military_esso_year')
-        .eq('is_military', true)
+        .eq('"isMilitary"', true)
 
       if (error) this.handleError(error, 'φόρτωση στατιστικών στρατιωτικών')
 

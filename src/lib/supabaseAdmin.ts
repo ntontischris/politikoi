@@ -1,12 +1,29 @@
 import { createClient } from '@supabase/supabase-js'
 
-const supabaseUrl = 'https://uxavpiieohxibqikxspp.supabase.co'
-const supabaseServiceRoleKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV4YXZwaWllb2h4aWJxaWt4c3BwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NzA4MjM5NCwiZXhwIjoyMDcyNjU4Mzk0fQ.Bk2RFip7zckTb1PL_1d5ZdwxmPsyugFvy6E5Was-RNk'
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+const supabaseServiceRoleKey = import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY
+
+if (!supabaseUrl) {
+  throw new Error('Missing Supabase URL')
+}
+
+if (!supabaseServiceRoleKey) {
+  console.warn('Missing service role key, using anon key for admin operations')
+}
 
 // Admin client with service role key for user management
-export const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey, {
-  auth: {
-    autoRefreshToken: false,
-    persistSession: false
+export const supabaseAdmin = createClient(
+  supabaseUrl,
+  supabaseServiceRoleKey || import.meta.env.VITE_SUPABASE_ANON_KEY,
+  {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false
+    },
+    global: {
+      headers: {
+        'X-Client-Info': 'citizen-management-admin'
+      }
+    }
   }
-})
+)

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { X, Save, FileText, Building } from 'lucide-react'
 import { useCitizenStore } from '../../stores/citizenStore'
+import { useRequestActions } from '../../stores/requestStore'
 
 interface RequestFormData {
   category: string
@@ -17,6 +18,7 @@ interface RequestFormProps {
   isOpen?: boolean
   onClose: () => void
   onSubmit?: (data: RequestFormData) => void
+  onSuccess?: () => void
   request?: unknown
   defaultCitizenId?: string
   initialData?: Partial<RequestFormData>
@@ -71,7 +73,7 @@ const departments = [
   'Άλλο'
 ]
 
-export function RequestForm({ isOpen = true, onClose, onSubmit, initialData, mode = 'add' }: RequestFormProps) {
+export function RequestForm({ isOpen = true, onClose, onSubmit, onSuccess, initialData, mode = 'add', defaultCitizenId }: RequestFormProps) {
   const [formData, setFormData] = useState<RequestFormData>({
     ...initialFormData,
     ...initialData
@@ -81,6 +83,7 @@ export function RequestForm({ isOpen = true, onClose, onSubmit, initialData, mod
   
   // Store hooks
   const { items: citizens, loadItems: loadCitizens } = useCitizenStore()
+  const { addItem: addRequest } = useRequestActions()
 
   // Load data when component mounts
   useEffect(() => {
@@ -98,6 +101,16 @@ export function RequestForm({ isOpen = true, onClose, onSubmit, initialData, mod
       })
     }
   }, [initialData, mode])
+
+  // Set default citizen if provided
+  useEffect(() => {
+    if (defaultCitizenId && mode === 'add' && !initialData) {
+      setFormData(prev => ({
+        ...prev,
+        citizenId: defaultCitizenId
+      }))
+    }
+  }, [defaultCitizenId, mode, initialData])
   
   // Reset form when modal closes
   useEffect(() => {
@@ -109,7 +122,8 @@ export function RequestForm({ isOpen = true, onClose, onSubmit, initialData, mod
 
   // Get available citizens (including military personnel)
   const getAvailablePersons = () => {
-    return citizens.filter(c => c.status === 'active')
+    // Show all citizens - remove the status filter since Greek statuses are different
+    return citizens
   }
 
   const validateForm = (): boolean => {
@@ -154,7 +168,7 @@ export function RequestForm({ isOpen = true, onClose, onSubmit, initialData, mod
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
+
     if (!validateForm()) {
       return
     }
@@ -163,6 +177,22 @@ export function RequestForm({ isOpen = true, onClose, onSubmit, initialData, mod
     try {
       if (onSubmit) {
         await onSubmit(formData)
+      } else {
+        // Use the request store to create the request
+        const requestData = {
+          citizenId: formData.citizenId,
+          requestType: formData.title,
+          description: formData.description,
+          status: 'pending' as const,
+          priority: formData.priority,
+          sendDate: new Date().toISOString(),
+          notes: formData.notes?.trim() || null
+        }
+        await addRequest(requestData)
+        // Call success callback if provided
+        if (onSuccess) {
+          onSuccess()
+        }
       }
       onClose()
       setFormData(initialFormData)
@@ -186,7 +216,7 @@ export function RequestForm({ isOpen = true, onClose, onSubmit, initialData, mod
   const categories = allCategories
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black opacity-50" onClick={handleClose}></div>
       
       <div className="bg-slate-800 border border-slate-700 rounded-xl w-full max-w-5xl max-h-[90vh] overflow-y-auto relative z-10">
@@ -290,9 +320,10 @@ export function RequestForm({ isOpen = true, onClose, onSubmit, initialData, mod
               <select
                 value={formData.citizenId}
                 onChange={(e) => handleInputChange('citizenId', e.target.value)}
+                disabled={!!defaultCitizenId}
                 className={`w-full bg-slate-700 border rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
                   errors.citizenId ? 'border-red-500' : 'border-slate-600'
-                }`}
+                } ${!!defaultCitizenId ? 'opacity-75 cursor-not-allowed' : ''}`}
               >
                 <option value="">Επιλέξτε πολίτη</option>
                 {getAvailablePersons().map(person => (
@@ -305,7 +336,14 @@ export function RequestForm({ isOpen = true, onClose, onSubmit, initialData, mod
               {errors.citizenId && (
                 <p className="mt-1 text-sm text-red-400">{errors.citizenId}</p>
               )}
-              {getAvailablePersons().length === 0 && (
+              {defaultCitizenId && (
+                <div className="mt-2 p-3 bg-blue-600/20 border border-blue-500/30 rounded-lg">
+                  <p className="text-sm text-blue-300">
+                    ℹ️ Ο πολίτης είναι προεπιλεγμένος και δεν μπορεί να αλλάξει.
+                  </p>
+                </div>
+              )}
+              {!defaultCitizenId && getAvailablePersons().length === 0 && (
                 <div className="mt-2 p-3 bg-yellow-600/20 border border-yellow-500/30 rounded-lg">
                   <p className="text-sm text-yellow-300">
                     ⚠️ Δεν υπάρχουν διαθέσιμοι πολίτες.

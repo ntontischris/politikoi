@@ -58,34 +58,39 @@ class AuthService {
 
   async createUser(userData: CreateUserData): Promise<{ user: any; error: any }> {
     try {
-      // Create the user in Supabase Auth using admin client
-      const { data, error } = await supabaseAdmin.auth.admin.createUser({
-        email: userData.email,
-        password: userData.password,
-        email_confirm: true,
-        user_metadata: {
-          full_name: userData.full_name
-        }
+      console.log('Creating user with custom function:', userData)
+
+      // Use custom database function to create user directly
+      const { data, error } = await supabaseAdmin.rpc('create_user_directly', {
+        user_email: userData.email,
+        user_password: userData.password,
+        user_full_name: userData.full_name,
+        user_role: userData.role
       })
 
-      if (error) return { user: null, error }
-
-      // Update the user's role
-      if (data.user) {
-        const roleId = await this.getRoleId(userData.role)
-        
-        // Use admin client to bypass RLS
-        await supabaseAdmin
-          .from('user_profiles')
-          .update({
-            full_name: userData.full_name,
-            role_id: roleId,
-            email: userData.email
-          })
-          .eq('id', data.user.id)
+      if (error) {
+        console.error('Error calling create_user_directly:', error)
+        return { user: null, error }
       }
 
-      return { user: data.user, error: null }
+      if (!data.success) {
+        console.error('User creation failed:', data.error)
+        return { user: null, error: new Error(data.error || 'Failed to create user') }
+      }
+
+      console.log('User created successfully:', data)
+
+      // Return success with user data
+      return {
+        user: {
+          id: data.user_id,
+          email: data.email,
+          user_metadata: {
+            full_name: data.full_name
+          }
+        },
+        error: null
+      }
     } catch (error) {
       console.error('Error creating user:', error)
       return { user: null, error: error as any }
@@ -114,22 +119,24 @@ class AuthService {
 
   async deleteUser(userId: string): Promise<void> {
     try {
-      // First delete the user profile using admin client
-      await supabaseAdmin
-        .from('user_profiles')
-        .delete()
-        .eq('id', userId)
+      console.log('Deleting user with custom function:', userId)
 
-      // Delete any user sessions
-      await supabaseAdmin
-        .from('user_sessions')
-        .delete()
-        .eq('user_id', userId)
+      // Use custom database function to delete user completely
+      const { data, error } = await supabaseAdmin.rpc('delete_user_completely', {
+        user_id_to_delete: userId
+      })
 
-      // Then delete from auth using admin client
-      const { error } = await supabaseAdmin.auth.admin.deleteUser(userId)
-      
-      if (error) throw error
+      if (error) {
+        console.error('Error calling delete_user_completely:', error)
+        throw error
+      }
+
+      if (!data.success) {
+        console.error('User deletion failed:', data.error)
+        throw new Error(data.error || 'Failed to delete user')
+      }
+
+      console.log('User deleted successfully:', data)
     } catch (error) {
       console.error('Error deleting user:', error)
       throw error

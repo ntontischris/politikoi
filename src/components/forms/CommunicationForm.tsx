@@ -22,8 +22,8 @@ export const CommunicationForm: React.FC<CommunicationFormProps> = ({
   communication,
   citizenId
 }) => {
-  const { addCommunication, updateCommunication, isLoading, error } = useCommunicationStore()
-  const { citizens, getCitizen } = useCitizenStore()
+  const { addItem, updateItem, isLoading, error } = useCommunicationStore()
+  const { items: citizens, getItem: getCitizen } = useCitizenStore()
   
   const [formData, setFormData] = useState({
     citizen_id: citizenId || communication?.citizen_id || '',
@@ -62,12 +62,17 @@ export const CommunicationForm: React.FC<CommunicationFormProps> = ({
 
     try {
       if (communication) {
-        await updateCommunication(communication.id, formData)
+        await updateItem(communication.id, {
+          citizenId: formData.citizen_id,
+          contactDate: formData.communication_date,
+          communicationType: formData.type,
+          notes: formData.notes
+        })
       } else {
-        await addCommunication({
-          citizen_id: formData.citizen_id,
-          communication_date: formData.communication_date,
-          communication_type: formData.type,
+        await addItem({
+          citizenId: formData.citizen_id,
+          contactDate: formData.communication_date,
+          communicationType: formData.type,
           notes: formData.notes
         })
       }
@@ -87,7 +92,7 @@ export const CommunicationForm: React.FC<CommunicationFormProps> = ({
   const selectedCitizen = getCitizen(formData.citizen_id)
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-[60]">
       <div className="bg-slate-800/90 backdrop-blur-lg border border-slate-700 rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-slate-700">

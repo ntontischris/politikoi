@@ -194,13 +194,8 @@ export const CommunicationTimeline: React.FC<CommunicationTimelineProps> = ({
                             {getTimeAgo(communication.contactDate)}
                           </span>
                         </div>
-                        {communication.description && (
-                          <p className="text-slate-300 text-sm leading-relaxed">
-                            {communication.description}
-                          </p>
-                        )}
                         {communication.notes && (
-                          <p className="text-slate-400 text-xs mt-2">
+                          <p className="text-slate-300 text-sm leading-relaxed">
                             {communication.notes}
                           </p>
                         )}

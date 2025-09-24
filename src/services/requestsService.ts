@@ -21,8 +21,8 @@ export interface RequestWithDetails extends Request {
     name: string
     surname: string
     municipality?: string
-    is_military?: boolean
-    military_rank?: string
+    "isMilitary"?: boolean
+    "militaryRank"?: string
   } | null
 }
 
@@ -39,7 +39,7 @@ export class RequestsService extends BaseService {
         .from('requests')
         .select(`
           *,
-          citizens!citizen_id(name, surname, municipality, is_military, military_rank)
+          citizens!citizen_id(name, surname, municipality, "isMilitary", "militaryRank")
         `)
         .order('created_at', { ascending: false })
 
@@ -59,7 +59,7 @@ export class RequestsService extends BaseService {
         .from('requests')
         .select(`
           *,
-          citizens!citizen_id(name, surname, municipality, is_military, military_rank)
+          citizens!citizen_id(name, surname, municipality, "isMilitary", "militaryRank")
         `)
         .eq('id', id)
         .single()
@@ -150,7 +150,7 @@ export class RequestsService extends BaseService {
         .from('requests')
         .select(`
           *,
-          citizens!citizen_id(name, surname, municipality, is_military, military_rank)
+          citizens!citizen_id(name, surname, municipality, "isMilitary", "militaryRank")
         `)
         .eq('status', status)
         .order('created_at', { ascending: false })
@@ -171,7 +171,7 @@ export class RequestsService extends BaseService {
     rejected: number
   }> {
     try {
-      const { data, error } = await supabase.rpc('get_request_stats')
+      const { data, error } = await supabase.rpc('get_citizen_stats')
 
       if (error) this.handleError(error, 'φόρτωση στατιστικών αιτημάτων')
 

@@ -6,7 +6,6 @@ export interface CommunicationDate {
   id: string
   citizenId: string
   communicationType: 'phone' | 'email' | 'meeting' | 'other'
-  description: string
   notes?: string
   contactDate: string
   created_at: string
@@ -22,25 +21,45 @@ export interface CommunicationDateWithCitizen extends CommunicationDate {
 }
 
 // Helper function to transform database communication to frontend
-const transformDBCommunication = (dbComm: DBCommunicationDate): CommunicationDate => ({
-  id: dbComm.id,
-  citizenId: dbComm.citizen_id,
-  communicationType: (dbComm.communication_type as CommunicationDate['communicationType']) || 'other',
-  description: dbComm.description || '',
-  notes: dbComm.notes || undefined,
-  contactDate: dbComm.contact_date,
-  created_at: dbComm.created_at,
-  updated_at: dbComm.updated_at
-})
+const transformDBCommunication = (dbComm: DBCommunicationDate): CommunicationDate => {
+  // Map database communication types to frontend types
+  const typeMapping: Record<string, CommunicationDate['communicationType']> = {
+    'ΤΗΛΕΦΩΝΙΚΗ': 'phone',
+    'EMAIL': 'email',
+    'ΠΡΟΣΩΠΙΚΗ': 'meeting',
+    'SMS': 'other',
+    'ΓΕΝΙΚΗ': 'other'
+  }
+
+  return {
+    id: dbComm.id,
+    citizenId: dbComm.citizen_id,
+    communicationType: typeMapping[dbComm.communication_type] || 'other',
+    notes: dbComm.notes || undefined,
+    contactDate: dbComm.communication_date,
+    created_at: dbComm.created_at,
+    updated_at: dbComm.created_at // Use created_at since updated_at doesn't exist in DB
+  }
+}
 
 // Helper function to transform frontend to database input
-const transformToDBInput = (comm: Partial<CommunicationDate>): Partial<CommunicationDateInput> => ({
-  citizen_id: comm.citizenId || '',
-  communication_type: comm.communicationType || 'other',
-  description: comm.description || '',
-  notes: comm.notes?.trim() || null,
-  contact_date: comm.contactDate || new Date().toISOString()
-})
+const transformToDBInput = (comm: Partial<CommunicationDate>): Partial<CommunicationDateInput> => {
+  // Map frontend communication types to database types
+  const typeMapping: Record<string, string> = {
+    'phone': 'ΤΗΛΕΦΩΝΙΚΗ',
+    'email': 'EMAIL',
+    'visit': 'ΠΡΟΣΩΠΙΚΗ',
+    'meeting': 'ΠΡΟΣΩΠΙΚΗ',
+    'other': 'ΓΕΝΙΚΗ'
+  }
+
+  return {
+    citizen_id: comm.citizenId || '',
+    communication_type: typeMapping[comm.communicationType || 'other'] || 'ΓΕΝΙΚΗ',
+    notes: comm.notes?.trim() || null,
+    communication_date: comm.contactDate || new Date().toISOString()
+  }
+}
 
 // Service adapter
 const communicationServiceAdapter = {

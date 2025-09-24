@@ -21,8 +21,8 @@ export interface RequestWithDetails extends Request {
     name: string
     surname: string
     municipality?: string
-    is_military?: boolean
-    military_rank?: string
+    isMilitary?: boolean
+    militaryRank?: string
   }
 }
 
@@ -155,7 +155,7 @@ export const useRequestActions = () => {
       }
     },
     
-    // Get requests by military personnel (now just citizens with is_military = true)
+    // Get requests by military personnel (now just citizens with isMilitary = true)
     getRequestsByMilitary: async (citizenId: string) => {
       try {
         store.setLoading(true)
