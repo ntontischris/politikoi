@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { FileText, AlertTriangle, Plus, Edit, Trash2, Clock, CheckCircle, XCircle, AlertCircle } from 'lucide-react'
-import { useRequestStore, useRequestActions, type Request } from '../../stores/requestStore'
+import { useRequestStore, useRequestActions, type Request } from '../../stores/realtimeRequestStore'
 import { RequestForm } from '../forms/RequestForm'
 import { RequestViewModal } from '../modals/RequestViewModal'
 
@@ -64,7 +64,7 @@ export const RequestTimeline: React.FC<RequestTimelineProps> = ({
   const {
     items: requests,
     error,
-    loadItems: loadRequests
+    initialize: loadRequests
   } = useRequestStore()
 
   const {

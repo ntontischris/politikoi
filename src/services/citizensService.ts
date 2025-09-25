@@ -38,6 +38,7 @@ export interface Citizen {
   created_by?: string | null
   // Military fields with new naming
   isMilitary?: boolean
+  militaryType?: 'conscript' | 'career' | null
   militaryRank?: string | null
   militaryServiceUnit?: string | null
   military_id?: string | null
@@ -48,6 +49,21 @@ export interface Citizen {
   military_status?: 'pending' | 'approved' | 'rejected' | 'completed' | null
   military_send_date?: string | null
   military_comments?: string | null
+  // Extended military fields for conscripts
+  military_asm?: string | null
+  military_center?: string | null
+  military_presentation_date?: string | null
+  military_placement?: string | null
+  military_placement_date?: string | null
+  military_request_date?: string | null
+  military_transfer_type?: 'μετάθεση' | 'απόσπαση' | null
+  military_transfer_date?: string | null
+  military_observations?: string | null
+  military_request_status?: 'ολοκληρωμένο' | 'ενημερώθηκε' | 'εκκρεμές' | null
+  // Extended military fields for career officers
+  military_registration_number?: string | null
+  military_career_desire?: string | null
+  military_career_request_date?: string | null
 }
 
 export type CitizenInput = Omit<Citizen, 'id' | 'created_at' | 'updated_at'>

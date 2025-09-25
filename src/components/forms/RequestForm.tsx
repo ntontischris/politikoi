@@ -1,13 +1,15 @@
 import { useState, useEffect } from 'react'
 import { X, Save, FileText, Building } from 'lucide-react'
-import { useCitizenStore } from '../../stores/citizenStore'
-import { useRequestActions } from '../../stores/requestStore'
+import { useRealtimeCitizenStore } from '../../stores/realtimeCitizenStore'
+import { useRequestActions } from '../../stores/realtimeRequestStore'
 
 interface RequestFormData {
+  type: 'citizen' | 'military'
   category: string
   title: string
   description: string
   citizenId: string
+  militaryId: string
   priority: 'low' | 'medium' | 'high' | 'urgent'
   department: string
   estimatedDays: string
@@ -26,10 +28,12 @@ interface RequestFormProps {
 }
 
 const initialFormData: RequestFormData = {
+  type: 'citizen',
   category: '',
   title: '',
   description: '',
   citizenId: '',
+  militaryId: '',
   priority: 'medium',
   department: '',
   estimatedDays: '',
@@ -78,11 +82,11 @@ export function RequestForm({ isOpen = true, onClose, onSubmit, onSuccess, initi
     ...initialFormData,
     ...initialData
   })
-  const [errors, setErrors] = useState<Partial<RequestFormData>>({})
+  const [errors, setErrors] = useState<Partial<RequestFormData & {militaryId: string}>>({})
   const [isSubmitting, setIsSubmitting] = useState(false)
   
   // Store hooks
-  const { items: citizens, loadItems: loadCitizens } = useCitizenStore()
+  const { items: citizens, initialize: loadCitizens } = useRealtimeCitizenStore()
   const { addItem: addRequest } = useRequestActions()
 
   // Load data when component mounts
@@ -144,8 +148,11 @@ export function RequestForm({ isOpen = true, onClose, onSubmit, onSuccess, initi
     }
 
     // Person selection validation
-    if (!formData.citizenId.trim()) {
+    if (formData.type === 'citizen' && !formData.citizenId.trim()) {
       newErrors.citizenId = 'Η επιλογή πολίτη είναι υποχρεωτική'
+    }
+    if (formData.type === 'military' && !formData.militaryId.trim()) {
+      newErrors.militaryId = 'Η επιλογή στρατιωτικού είναι υποχρεωτική'
     }
 
     // Estimated days validation (optional but if provided should be a number)
@@ -158,7 +165,20 @@ export function RequestForm({ isOpen = true, onClose, onSubmit, onSuccess, initi
   }
 
   const handleInputChange = (field: keyof RequestFormData, value: string) => {
-    setFormData(prev => ({ ...prev, [field]: value }))
+    setFormData(prev => {
+      const newData = { ...prev, [field]: value }
+
+      // Clear the opposite field when type changes
+      if (field === 'type') {
+        if (value === 'citizen') {
+          newData.militaryId = ''
+        } else if (value === 'military') {
+          newData.citizenId = ''
+        }
+      }
+
+      return newData
+    })
 
     // Clear error when user starts typing
     if (errors[field]) {
@@ -180,13 +200,14 @@ export function RequestForm({ isOpen = true, onClose, onSubmit, onSuccess, initi
       } else {
         // Use the request store to create the request
         const requestData = {
-          citizenId: formData.citizenId,
-          requestType: formData.title,
+          citizenId: formData.type === 'citizen' ? formData.citizenId : undefined,
+          militaryPersonnelId: formData.type === 'military' ? formData.militaryId : undefined,
+          requestType: `${formData.category} - ${formData.title}`, // Combine category and title
           description: formData.description,
-          status: 'pending' as const,
+          status: 'ΕΚΚΡΕΜΕΙ' as const, // Use Greek status
           priority: formData.priority,
           sendDate: new Date().toISOString(),
-          notes: formData.notes?.trim() || null
+          notes: formData.notes?.trim() || undefined
         }
         await addRequest(requestData)
         // Call success callback if provided
@@ -205,6 +226,7 @@ export function RequestForm({ isOpen = true, onClose, onSubmit, onSuccess, initi
   }
 
   const handleClose = () => {
+    setIsSubmitting(false)  // Reset loading state when closing
     onClose()
     setFormData(initialFormData)
     setErrors({})
@@ -240,12 +262,26 @@ export function RequestForm({ isOpen = true, onClose, onSubmit, onSuccess, initi
         <form onSubmit={handleSubmit} className="p-6">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             
-            {/* Category */}
+            {/* Type and Category */}
             <div className="lg:col-span-3">
               <div className="flex items-center mb-4">
                 <FileText className="h-5 w-5 text-blue-400 mr-2" />
-                <h3 className="text-lg font-medium text-white">Κατηγορία Αιτήματος</h3>
+                <h3 className="text-lg font-medium text-white">Τύπος & Κατηγορία Αιτήματος</h3>
               </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                Τύπος Αιτήματος *
+              </label>
+              <select
+                value={formData.type}
+                onChange={(e) => handleInputChange('type', e.target.value)}
+                className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="citizen">Πολιτικό Αίτημα</option>
+                <option value="military">Στρατιωτικό Αίτημα</option>
+              </select>
             </div>
 
             <div>
@@ -315,26 +351,30 @@ export function RequestForm({ isOpen = true, onClose, onSubmit, onSuccess, initi
             {/* Person Selection */}
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-2">
-                Επιλογή Πολίτη *
+                {formData.type === 'citizen' ? 'Επιλογή Πολίτη *' : 'Επιλογή Στρατιωτικού *'}
               </label>
               <select
-                value={formData.citizenId}
-                onChange={(e) => handleInputChange('citizenId', e.target.value)}
+                value={formData.type === 'citizen' ? formData.citizenId : formData.militaryId}
+                onChange={(e) => handleInputChange(formData.type === 'citizen' ? 'citizenId' : 'militaryId', e.target.value)}
                 disabled={!!defaultCitizenId}
                 className={`w-full bg-slate-700 border rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
                   errors.citizenId ? 'border-red-500' : 'border-slate-600'
                 } ${!!defaultCitizenId ? 'opacity-75 cursor-not-allowed' : ''}`}
               >
-                <option value="">Επιλέξτε πολίτη</option>
-                {getAvailablePersons().map(person => (
-                  <option key={person.id} value={person.id}>
-                    {`${person.name} ${person.surname}`}
-                    {person.is_military && person.military_rank && ` - ${person.military_rank} (ΣΤΡΑΤ)`}
-                  </option>
-                ))}
+                <option value="">{formData.type === 'citizen' ? 'Επιλέξτε πολίτη' : 'Επιλέξτε στρατιωτικό'}</option>
+                {getAvailablePersons()
+                  .filter(person => formData.type === 'citizen' ? !person.isMilitary : person.isMilitary)
+                  .map(person => (
+                    <option key={person.id} value={person.id}>
+                      {`${person.name} ${person.surname}`}
+                      {person.isMilitary && person.militaryRank && ` - ${person.militaryRank}`}
+                    </option>
+                  ))}
               </select>
-              {errors.citizenId && (
-                <p className="mt-1 text-sm text-red-400">{errors.citizenId}</p>
+              {(errors.citizenId || errors.militaryId) && (
+                <p className="mt-1 text-sm text-red-400">
+                  {formData.type === 'citizen' ? errors.citizenId : errors.militaryId}
+                </p>
               )}
               {defaultCitizenId && (
                 <div className="mt-2 p-3 bg-blue-600/20 border border-blue-500/30 rounded-lg">
@@ -343,11 +383,11 @@ export function RequestForm({ isOpen = true, onClose, onSubmit, onSuccess, initi
                   </p>
                 </div>
               )}
-              {!defaultCitizenId && getAvailablePersons().length === 0 && (
+              {!defaultCitizenId && getAvailablePersons().filter(person => formData.type === 'citizen' ? !person.isMilitary : person.isMilitary).length === 0 && (
                 <div className="mt-2 p-3 bg-yellow-600/20 border border-yellow-500/30 rounded-lg">
                   <p className="text-sm text-yellow-300">
-                    ⚠️ Δεν υπάρχουν διαθέσιμοι πολίτες.
-                    <br />Παρακαλώ δημιουργήστε πρώτα έναν πολίτη από το μενού Πολίτες.
+                    ⚠️ Δεν υπάρχουν διαθέσιμοι {formData.type === 'citizen' ? 'πολίτες' : 'στρατιωτικοί'}.
+                    <br />Παρακαλώ δημιουργήστε πρώτα έναν {formData.type === 'citizen' ? 'πολίτη' : 'στρατιωτικό'} από το μενού Πολίτες.
                   </p>
                 </div>
               )}

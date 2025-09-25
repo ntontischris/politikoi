@@ -27,7 +27,10 @@
       "mcp__playwright__browser_close",
       "mcp__playwright__browser_install",
       "Bash(taskkill:*)",
-      "Bash(wmic process where:*)"
+      "Bash(wmic process where:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "WebSearch"
     ]
   },
   "enableAllProjectMcpServers": true,

@@ -107,15 +107,27 @@ export default {
   },
   plugins: [
     require('@tailwindcss/forms'),
-    // Custom responsive utilities for consistent mobile-first design
-    function({ addUtilities }) {
+    // Enhanced responsive utilities for ultra-responsive mobile-first design
+    function({ addUtilities, addComponents }) {
       const newUtilities = {
-        // Touch-friendly minimum size for mobile interactions
+        // Enhanced touch targets with better accessibility
         '.touch-target': {
           'min-height': '44px', // iOS Human Interface Guidelines
           'min-width': '44px',
           'padding': '8px',
+          'cursor': 'pointer',
+          'user-select': 'none',
+          '-webkit-tap-highlight-color': 'rgba(0, 0, 0, 0)',
         },
+        '.touch-target-lg': {
+          'min-height': '48px', // Even larger for primary actions
+          'min-width': '48px',
+          'padding': '12px',
+          'cursor': 'pointer',
+          'user-select': 'none',
+          '-webkit-tap-highlight-color': 'rgba(0, 0, 0, 0)',
+        },
+
         // Responsive visibility utilities for dual-view patterns
         '.mobile-table-hidden': {
           '@media (max-width: 767px)': {
@@ -127,7 +139,25 @@ export default {
             'display': 'none',
           },
         },
-        // Responsive padding utility
+        '.tablet-hidden': {
+          '@media (min-width: 640px) and (max-width: 1023px)': {
+            'display': 'none',
+          },
+        },
+        '.desktop-only': {
+          '@media (max-width: 1023px)': {
+            'display': 'none',
+          },
+        },
+
+        // Fluid spacing system using clamp()
+        '.space-fluid-xs': { 'margin': 'clamp(0.25rem, 1vw, 0.5rem)' },
+        '.space-fluid-sm': { 'margin': 'clamp(0.5rem, 2vw, 1rem)' },
+        '.space-fluid-md': { 'margin': 'clamp(1rem, 3vw, 1.5rem)' },
+        '.space-fluid-lg': { 'margin': 'clamp(1.5rem, 4vw, 2.5rem)' },
+        '.space-fluid-xl': { 'margin': 'clamp(2rem, 6vw, 4rem)' },
+
+        // Responsive padding with better mobile optimization
         '.responsive-padding': {
           'padding': '12px',
           '@media (min-width: 640px)': {
@@ -137,35 +167,224 @@ export default {
             'padding': '24px',
           },
         },
-        // Responsive modal sizing for optimal viewing
-        '.responsive-modal': {
-          'width': '100%',
-          'max-width': '20rem', // 320px - small forms
+        '.responsive-padding-x': {
+          'padding-left': '12px',
+          'padding-right': '12px',
           '@media (min-width: 640px)': {
-            'max-width': '28rem', // 448px
-          },
-          '@media (min-width: 768px)': {
-            'max-width': '32rem', // 512px
+            'padding-left': '16px',
+            'padding-right': '16px',
           },
           '@media (min-width: 1024px)': {
-            'max-width': '48rem', // 768px
+            'padding-left': '24px',
+            'padding-right': '24px',
+          },
+        },
+        '.responsive-padding-y': {
+          'padding-top': '12px',
+          'padding-bottom': '12px',
+          '@media (min-width: 640px)': {
+            'padding-top': '16px',
+            'padding-bottom': '16px',
+          },
+          '@media (min-width: 1024px)': {
+            'padding-top': '24px',
+            'padding-bottom': '24px',
+          },
+        },
+
+        // Enhanced modal sizing with fullscreen mobile mode
+        '.responsive-modal': {
+          'width': '100%',
+          'max-width': '100vw',
+          'max-height': '100vh',
+          'margin': '0',
+          'border-radius': '0',
+          '@media (min-width: 640px)': {
+            'max-width': '28rem',
+            'max-height': '90vh',
+            'margin': 'auto',
+            'border-radius': '0.75rem',
+          },
+          '@media (min-width: 768px)': {
+            'max-width': '32rem',
+          },
+          '@media (min-width: 1024px)': {
+            'max-width': '48rem',
           },
         },
         '.responsive-modal-lg': {
           'width': '100%',
-          'max-width': '90vw', // Almost full width on mobile
+          'max-width': '100vw',
+          'max-height': '100vh',
+          'margin': '0',
+          'border-radius': '0',
           '@media (min-width: 640px)': {
-            'max-width': '32rem', // 512px
+            'max-width': '32rem',
+            'max-height': '90vh',
+            'margin': 'auto',
+            'border-radius': '0.75rem',
           },
           '@media (min-width: 768px)': {
-            'max-width': '40rem', // 640px
+            'max-width': '40rem',
           },
           '@media (min-width: 1024px)': {
-            'max-width': '56rem', // 896px - large content modals
+            'max-width': '56rem',
+          },
+        },
+        '.responsive-modal-xl': {
+          'width': '100%',
+          'max-width': '100vw',
+          'max-height': '100vh',
+          'margin': '0',
+          'border-radius': '0',
+          '@media (min-width: 640px)': {
+            'max-width': '48rem',
+            'max-height': '90vh',
+            'margin': 'auto',
+            'border-radius': '0.75rem',
+          },
+          '@media (min-width: 1024px)': {
+            'max-width': '64rem',
+          },
+          '@media (min-width: 1280px)': {
+            'max-width': '80rem',
+          },
+        },
+
+        // Responsive text sizing with fluid typography
+        '.text-fluid-xs': { 'font-size': 'clamp(0.75rem, 2vw, 0.875rem)' },
+        '.text-fluid-sm': { 'font-size': 'clamp(0.875rem, 2.5vw, 1rem)' },
+        '.text-fluid-base': { 'font-size': 'clamp(1rem, 3vw, 1.125rem)' },
+        '.text-fluid-lg': { 'font-size': 'clamp(1.125rem, 3.5vw, 1.25rem)' },
+        '.text-fluid-xl': { 'font-size': 'clamp(1.25rem, 4vw, 1.5rem)' },
+        '.text-fluid-2xl': { 'font-size': 'clamp(1.5rem, 5vw, 2rem)' },
+        '.text-fluid-3xl': { 'font-size': 'clamp(1.875rem, 6vw, 2.5rem)' },
+
+        // Safe area utilities for notched devices
+        '.safe-top': { 'padding-top': 'env(safe-area-inset-top)' },
+        '.safe-bottom': { 'padding-bottom': 'env(safe-area-inset-bottom)' },
+        '.safe-left': { 'padding-left': 'env(safe-area-inset-left)' },
+        '.safe-right': { 'padding-right': 'env(safe-area-inset-right)' },
+        '.safe-x': {
+          'padding-left': 'env(safe-area-inset-left)',
+          'padding-right': 'env(safe-area-inset-right)'
+        },
+        '.safe-y': {
+          'padding-top': 'env(safe-area-inset-top)',
+          'padding-bottom': 'env(safe-area-inset-bottom)'
+        },
+
+        // Scroll utilities
+        '.scroll-smooth-mobile': {
+          'scroll-behavior': 'smooth',
+          '-webkit-overflow-scrolling': 'touch',
+        },
+        '.no-scrollbar': {
+          '-ms-overflow-style': 'none',
+          'scrollbar-width': 'none',
+          '&::-webkit-scrollbar': {
+            'display': 'none',
+          },
+        },
+
+        // Container with max-width and padding
+        '.container-responsive': {
+          'width': '100%',
+          'padding-left': '1rem',
+          'padding-right': '1rem',
+          '@media (min-width: 640px)': {
+            'padding-left': '1.5rem',
+            'padding-right': '1.5rem',
+          },
+          '@media (min-width: 1024px)': {
+            'padding-left': '2rem',
+            'padding-right': '2rem',
+            'max-width': '1200px',
+            'margin-left': 'auto',
+            'margin-right': 'auto',
+          },
+        },
+
+        // Responsive grid utilities
+        '.grid-responsive': {
+          'display': 'grid',
+          'grid-template-columns': '1fr',
+          'gap': '1rem',
+          '@media (min-width: 640px)': {
+            'grid-template-columns': 'repeat(2, 1fr)',
+          },
+          '@media (min-width: 1024px)': {
+            'grid-template-columns': 'repeat(3, 1fr)',
+          },
+        },
+        '.grid-responsive-4': {
+          'display': 'grid',
+          'grid-template-columns': '1fr',
+          'gap': '1rem',
+          '@media (min-width: 640px)': {
+            'grid-template-columns': 'repeat(2, 1fr)',
+          },
+          '@media (min-width: 1024px)': {
+            'grid-template-columns': 'repeat(4, 1fr)',
+          },
+        },
+        '.grid-auto-fit': {
+          'display': 'grid',
+          'grid-template-columns': 'repeat(auto-fit, minmax(250px, 1fr))',
+          'gap': '1rem',
+        },
+        '.grid-auto-fill': {
+          'display': 'grid',
+          'grid-template-columns': 'repeat(auto-fill, minmax(200px, 1fr))',
+          'gap': '1rem',
+        },
+
+        // Enhanced table utilities
+        '.table-responsive': {
+          'overflow-x': 'auto',
+          'scrollbar-width': 'thin',
+          '&::-webkit-scrollbar': {
+            'height': '4px',
+          },
+          '&::-webkit-scrollbar-track': {
+            'background': '#1f2937',
+          },
+          '&::-webkit-scrollbar-thumb': {
+            'background': '#4b5563',
+            'border-radius': '2px',
+          },
+          '&::-webkit-scrollbar-thumb:hover': {
+            'background': '#6b7280',
           },
         },
       }
+
+      // Component-level responsive utilities
+      const components = {
+        '.btn-responsive': {
+          'padding': '0.5rem 1rem',
+          'font-size': '0.875rem',
+          '@media (min-width: 640px)': {
+            'padding': '0.75rem 1.5rem',
+            'font-size': '1rem',
+          },
+        },
+        '.card-responsive': {
+          'padding': '1rem',
+          'border-radius': '0.5rem',
+          '@media (min-width: 640px)': {
+            'padding': '1.5rem',
+            'border-radius': '0.75rem',
+          },
+          '@media (min-width: 1024px)': {
+            'padding': '2rem',
+            'border-radius': '1rem',
+          },
+        },
+      }
+
       addUtilities(newUtilities, ['responsive'])
+      addComponents(components)
     },
   ],
 }

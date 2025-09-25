@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { Bell, Clock, AlertTriangle, CheckCircle, Calendar } from 'lucide-react'
-import { useReminderActions, type Reminder } from '../../stores/reminderStore'
+import { useReminderActions, type Reminder } from '../../stores/realtimeReminderStore'
 
 const typeColors = {
   'ΕΟΡΤΗ': 'text-purple-400',
@@ -18,7 +18,7 @@ const typeLabels = {
 export const ReminderWidget: React.FC = () => {
   const { 
     items: reminders,
-    loadItems,
+    initialize,
     markCompleted,
     getStats,
     isLoading
@@ -31,7 +31,7 @@ export const ReminderWidget: React.FC = () => {
   useEffect(() => {
     const loadData = async () => {
       try {
-        await loadItems()
+        await initialize()
         const statsData = getStats()
         setStats(statsData)
       } catch (error) {

@@ -1,8 +1,8 @@
 // Integration test script for all store integrations
-import { useCitizenStore } from '../stores/citizenStore'
-import { useRequestStore } from '../stores/requestStore'
-import { useMilitaryStore } from '../stores/militaryStore'
-import { useReminderStore } from '../stores/reminderStore'
+import { useRealtimeCitizenStore } from '../stores/realtimeCitizenStore'
+import { useRequestStore } from '../stores/realtimeRequestStore'
+import { useMilitaryStore } from '../stores/realtimeMilitaryStore'
+import { useReminderStore } from '../stores/realtimeReminderStore'
 import { useCommunicationStore } from '../stores/communicationStore'
 
 interface TestResult {
@@ -20,9 +20,9 @@ export async function runStoreIntegrationTests(): Promise<TestResult[]> {
   // Test Citizen Store
   try {
     console.log('Testing Citizen Store...')
-    const citizenStore = useCitizenStore.getState()
+    const citizenStore = useRealtimeCitizenStore.getState()
     
-    await citizenStore.loadCitizens()
+    await citizenStore.initialize()
     const stats = await citizenStore.getStats()
     
     results.push({
@@ -46,7 +46,7 @@ export async function runStoreIntegrationTests(): Promise<TestResult[]> {
     console.log('Testing Request Store...')
     const requestStore = useRequestStore.getState()
     
-    await requestStore.loadRequests()
+    await requestStore.initialize()
     const stats = await requestStore.getStats()
     
     results.push({
@@ -70,7 +70,7 @@ export async function runStoreIntegrationTests(): Promise<TestResult[]> {
     console.log('Testing Military Store...')
     const militaryStore = useMilitaryStore.getState()
     
-    await militaryStore.loadMilitaryPersonnel()
+    await militaryStore.initialize()
     const stats = await militaryStore.getStats()
     
     results.push({
@@ -94,7 +94,7 @@ export async function runStoreIntegrationTests(): Promise<TestResult[]> {
     console.log('Testing Reminder Store...')
     const reminderStore = useReminderStore.getState()
     
-    await reminderStore.loadReminders()
+    await reminderStore.initialize()
     const stats = reminderStore.getStats()
     
     results.push({
@@ -167,7 +167,7 @@ export async function testCRUDOperations() {
   console.log('🧪 Testing CRUD Operations...\n')
   
   try {
-    const citizenStore = useCitizenStore.getState()
+    const citizenStore = useRealtimeCitizenStore.getState()
     
     console.log('1. Testing CREATE operation...')
     await citizenStore.addCitizen({

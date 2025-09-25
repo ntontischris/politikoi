@@ -1,8 +1,13 @@
 import { useEffect } from 'react'
 import { useAuthStore } from '../stores/authStore'
-import { DataPreloader } from './DataPreloader'
 import App from '../App'
 
+/**
+ * OPTIMIZED AppWrapper
+ *
+ * Removed DataPreloader - stores now use lazy initialization με RealtimeManager
+ * Πολύ πιο γρήγορο startup και όχι duplicate loading
+ */
 export function AppWrapper() {
   const { initialize } = useAuthStore()
 
@@ -10,9 +15,5 @@ export function AppWrapper() {
     initialize()
   }, [initialize])
 
-  return (
-    <DataPreloader>
-      <App />
-    </DataPreloader>
-  )
+  return <App />
 }

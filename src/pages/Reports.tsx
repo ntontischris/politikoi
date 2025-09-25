@@ -13,9 +13,9 @@ import {
 import { PrintableReport } from '../components/reports/PrintableReport'
 import { StatisticsChart } from '../components/charts/StatisticsChart'
 import { AnalyticsService } from '../services/analyticsService'
-import { useCitizenStore } from '../stores/citizenStore'
-import { useRequestStore } from '../stores/requestStore'
-import { useMilitaryStore } from '../stores/militaryStore'
+import { useRealtimeCitizenStore } from '../stores/realtimeCitizenStore'
+import { useRequestStore } from '../stores/realtimeRequestStore'
+import { useMilitaryStore } from '../stores/realtimeMilitaryStore'
 
 interface ReportFilters {
   type: 'citizens' | 'requests' | 'military' | 'analytics'
@@ -37,7 +37,7 @@ export function Reports() {
   const [showPrintModal, setShowPrintModal] = useState(false)
 
   // Get data from stores
-  const { items: citizens } = useCitizenStore()
+  const { items: citizens } = useRealtimeCitizenStore()
   const { items: requests } = useRequestStore()
   const { items: militaryPersonnel } = useMilitaryStore()
   

@@ -1,7 +1,7 @@
 import { X, User, Phone, Mail, MapPin, FileText, Calendar, Edit } from 'lucide-react'
 import { CommunicationTimeline } from '../timeline/CommunicationTimeline'
 import { RequestTimeline } from '../timeline/RequestTimeline'
-import type { Citizen } from '../../stores/citizenStore'
+import type { Citizen } from '../../stores/realtimeCitizenStore'
 
 interface CitizenViewModalProps {
   citizen: Citizen | null
@@ -60,11 +60,15 @@ export function CitizenViewModal({ citizen, isOpen, onClose, onEdit, onRequestFo
           {/* Status Badge */}
           <div className="flex items-center">
             <span className={`px-3 py-1 rounded-full text-sm font-medium border ${
-              citizen.status === 'active' 
-                ? 'bg-green-500/20 text-green-400 border-green-500/30' 
+              citizen.status === 'ΟΛΟΚΛΗΡΩΜΕΝΑ'
+                ? 'bg-green-500/20 text-green-400 border-green-500/30'
+                : citizen.status === 'ΕΚΚΡΕΜΗ'
+                ? 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30'
                 : 'bg-red-500/20 text-red-400 border-red-500/30'
             }`}>
-              {citizen.status === 'active' ? 'Ενεργός' : 'Ανενεργός'}
+              {citizen.status === 'ΟΛΟΚΛΗΡΩΜΕΝΑ' ? 'Ολοκληρωμένα' :
+               citizen.status === 'ΕΚΚΡΕΜΗ' ? 'Εκκρεμή' :
+               citizen.status || 'Δεν έχει καταχωρηθεί'}
             </span>
           </div>
 
@@ -91,7 +95,9 @@ export function CitizenViewModal({ citizen, isOpen, onClose, onEdit, onRequestFo
                 <div>
                   <p className="text-gray-400 text-sm">Κατάσταση</p>
                   <p className="text-white font-medium">
-                    {citizen.status === 'active' ? 'Ενεργός' : 'Ανενεργός'}
+                    {citizen.status === 'ΟΛΟΚΛΗΡΩΜΕΝΑ' ? 'Ολοκληρωμένα' :
+                     citizen.status === 'ΕΚΚΡΕΜΗ' ? 'Εκκρεμή' :
+                     citizen.status || 'Δεν έχει καταχωρηθεί'}
                   </p>
                 </div>
               </div>
@@ -145,7 +151,7 @@ export function CitizenViewModal({ citizen, isOpen, onClose, onEdit, onRequestFo
                 <div>
                   <p className="text-gray-400 text-sm">Περιοχή</p>
                   <p className="text-white font-medium">
-                    {citizen.city || <span className="text-gray-500">Δεν έχει καταχωρηθεί</span>}
+                    {citizen.region || <span className="text-gray-500">Δεν έχει καταχωρηθεί</span>}
                   </p>
                 </div>
                 <div>

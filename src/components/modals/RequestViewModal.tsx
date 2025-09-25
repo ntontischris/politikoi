@@ -1,31 +1,5 @@
-import { X, FileText, User, Building, Clock, AlertTriangle, Calendar, Edit, Star, CheckCircle } from 'lucide-react'
-
-interface Request {
-  id: string
-  type: 'citizen' | 'military' | 'general'
-  category: string
-  title: string
-  description: string
-  submitterName: string
-  submitterEmail: string
-  submitterPhone: string
-  submitterAfm?: string
-  relatedCitizenId?: string
-  relatedMilitaryId?: string
-  priority: 'low' | 'medium' | 'high' | 'urgent'
-  status: 'submitted' | 'in_progress' | 'pending_review' | 'approved' | 'rejected' | 'completed'
-  assignedTo?: string
-  department: string
-  estimatedDays?: number
-  actualDays?: number
-  submissionDate: string
-  responseDate?: string
-  completionDate?: string
-  notes: string
-  attachments?: string[]
-  created_at: string
-  updated_at: string
-}
+import { X, FileText, User, Building, Clock, AlertTriangle, Calendar, Edit, Star, CheckCircle, XCircle } from 'lucide-react'
+import { type Request } from '../../stores/realtimeRequestStore'
 
 interface RequestViewModalProps {
   request: Request | null
@@ -42,43 +16,37 @@ export function RequestViewModal({ request, isOpen, onClose, onEdit }: RequestVi
     onClose()
   }
 
-  const getStatusColor = (status: string) => {
+  const getStatusColor = (status: Request['status']) => {
     switch (status) {
-      case 'submitted': return 'bg-blue-500/20 text-blue-400 border-blue-500/30'
-      case 'in_progress': return 'bg-orange-500/20 text-orange-400 border-orange-500/30'
-      case 'pending_review': return 'bg-purple-500/20 text-purple-400 border-purple-500/30'
-      case 'approved': return 'bg-green-500/20 text-green-400 border-green-500/30'
-      case 'rejected': return 'bg-red-500/20 text-red-400 border-red-500/30'
-      case 'completed': return 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
+      case 'ΕΚΚΡΕΜΕΙ': return 'bg-blue-500/20 text-blue-400 border-blue-500/30'
+      case 'ΣΕ_ΕΞΕΛΙΞΗ': return 'bg-orange-500/20 text-orange-400 border-orange-500/30'
+      case 'ΟΛΟΚΛΗΡΩΘΗΚΕ': return 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
+      case 'ΑΠΟΡΡΙΦΘΗΚΕ': return 'bg-red-500/20 text-red-400 border-red-500/30'
       default: return 'bg-gray-500/20 text-gray-400 border-gray-500/30'
     }
   }
 
-  const getStatusText = (status: string) => {
+  const getStatusText = (status: Request['status']) => {
     switch (status) {
-      case 'submitted': return 'Υποβλήθηκε'
-      case 'in_progress': return 'Σε Εξέλιξη'
-      case 'pending_review': return 'Εκκρεμεί Έλεγχος'
-      case 'approved': return 'Εγκρίθηκε'
-      case 'rejected': return 'Απορρίφθηκε'
-      case 'completed': return 'Ολοκληρώθηκε'
+      case 'ΕΚΚΡΕΜΕΙ': return 'Εκκρεμές'
+      case 'ΣΕ_ΕΞΕΛΙΞΗ': return 'Σε Εξέλιξη'
+      case 'ΟΛΟΚΛΗΡΩΘΗΚΕ': return 'Ολοκληρωμένο'
+      case 'ΑΠΟΡΡΙΦΘΗΚΕ': return 'Απορρίφθηκε'
       default: return 'Άγνωστο'
     }
   }
 
-  const getStatusIcon = (status: string) => {
+  const getStatusIcon = (status: Request['status']) => {
     switch (status) {
-      case 'submitted': return FileText
-      case 'in_progress': return Clock
-      case 'pending_review': return AlertTriangle
-      case 'approved': return Star
-      case 'rejected': return X
-      case 'completed': return CheckCircle
+      case 'ΕΚΚΡΕΜΕΙ': return Clock
+      case 'ΣΕ_ΕΞΕΛΙΞΗ': return AlertTriangle
+      case 'ΟΛΟΚΛΗΡΩΘΗΚΕ': return CheckCircle
+      case 'ΑΠΟΡΡΙΦΘΗΚΕ': return XCircle
       default: return FileText
     }
   }
 
-  const getPriorityColor = (priority: string) => {
+  const getPriorityColor = (priority: Request['priority']) => {
     switch (priority) {
       case 'low': return 'bg-green-500/20 text-green-400 border-green-500/30'
       case 'medium': return 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30'
@@ -88,7 +56,7 @@ export function RequestViewModal({ request, isOpen, onClose, onEdit }: RequestVi
     }
   }
 
-  const getPriorityText = (priority: string) => {
+  const getPriorityText = (priority: Request['priority']) => {
     switch (priority) {
       case 'low': return 'Χαμηλή'
       case 'medium': return 'Μέση'
@@ -98,36 +66,18 @@ export function RequestViewModal({ request, isOpen, onClose, onEdit }: RequestVi
     }
   }
 
-  const getTypeText = (type: string) => {
-    switch (type) {
-      case 'citizen': return 'Πολιτικό Αίτημα'
-      case 'military': return 'Στρατιωτικό Αίτημα'
-      case 'general': return 'Γενικό Αίτημα'
-      default: return 'Άγνωστο'
-    }
-  }
-
-  const getTypeColor = (type: string) => {
-    switch (type) {
-      case 'citizen': return 'bg-blue-500/20 text-blue-400 border-blue-500/30'
-      case 'military': return 'bg-red-500/20 text-red-400 border-red-500/30'
-      case 'general': return 'bg-green-500/20 text-green-400 border-green-500/30'
-      default: return 'bg-gray-500/20 text-gray-400 border-gray-500/30'
-    }
-  }
-
   const StatusIcon = getStatusIcon(request.status)
 
-  // Calculate response time
-  const getResponseTime = () => {
-    if (!request.responseDate) return null
-    const submissionDate = new Date(request.submissionDate)
-    const responseDate = new Date(request.responseDate)
-    const diffDays = Math.ceil((responseDate.getTime() - submissionDate.getTime()) / (1000 * 3600 * 24))
-    return diffDays
+  // Determine type based on whether it's linked to military personnel
+  const getRequestType = () => {
+    return request.militaryPersonnelId ? 'Στρατιωτικό Αίτημα' : 'Πολιτικό Αίτημα'
   }
 
-  const responseTime = getResponseTime()
+  const getRequestTypeColor = () => {
+    return request.militaryPersonnelId
+      ? 'bg-red-500/20 text-red-400 border-red-500/30'
+      : 'bg-blue-500/20 text-blue-400 border-blue-500/30'
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4">
@@ -140,10 +90,10 @@ export function RequestViewModal({ request, isOpen, onClose, onEdit }: RequestVi
             <FileText className="h-6 w-6 text-blue-400 mr-3" />
             <div>
               <h2 className="text-xl font-semibold text-white">
-                {request.title}
+                {request.requestType}
               </h2>
               <p className="text-gray-400 text-sm">
-                Αίτημα #{request.id} • {getTypeText(request.type)}
+                Αίτημα #{request.id.slice(-8)} • {getRequestType()}
               </p>
             </div>
           </div>
@@ -176,11 +126,8 @@ export function RequestViewModal({ request, isOpen, onClose, onEdit }: RequestVi
             <span className={`px-3 py-1 rounded-full text-xs font-medium border ${getPriorityColor(request.priority)}`}>
               Προτεραιότητα: {getPriorityText(request.priority)}
             </span>
-            <span className={`px-3 py-1 rounded-full text-xs font-medium border ${getTypeColor(request.type)}`}>
-              {getTypeText(request.type)}
-            </span>
-            <span className="bg-slate-700 text-slate-300 px-3 py-1 rounded-full text-xs">
-              {request.category}
+            <span className={`px-3 py-1 rounded-full text-xs font-medium border ${getRequestTypeColor()}`}>
+              {getRequestType()}
             </span>
           </div>
 
@@ -212,32 +159,26 @@ export function RequestViewModal({ request, isOpen, onClose, onEdit }: RequestVi
             </div>
           </div>
 
-          {/* Submitter Information */}
+          {/* Citizen Information */}
           <div>
             <div className="flex items-center mb-4">
               <User className="h-5 w-5 text-blue-400 mr-2" />
-              <h3 className="text-lg font-medium text-white">Στοιχεία Αιτούντα</h3>
+              <h3 className="text-lg font-medium text-white">Στοιχεία Πολίτη</h3>
             </div>
             <div className="bg-slate-700/30 rounded-lg p-4 space-y-3">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <p className="text-gray-400 text-sm">Ονοματεπώνυμο</p>
-                  <p className="text-white font-medium">{request.submitterName}</p>
+                  <p className="text-gray-400 text-sm">ID Πολίτη</p>
+                  <p className="text-white font-medium font-mono text-sm">
+                    {request.citizenId || request.militaryPersonnelId || 'Δεν καθορίστηκε'}
+                  </p>
                 </div>
                 <div>
-                  <p className="text-gray-400 text-sm">Email</p>
-                  <p className="text-white font-medium">{request.submitterEmail}</p>
+                  <p className="text-gray-400 text-sm">Τύπος</p>
+                  <p className="text-white font-medium">
+                    {request.militaryPersonnelId ? 'Στρατιωτικό Προσωπικό' : 'Πολίτης'}
+                  </p>
                 </div>
-                <div>
-                  <p className="text-gray-400 text-sm">Τηλέφωνο</p>
-                  <p className="text-white font-medium">{request.submitterPhone}</p>
-                </div>
-                {request.submitterAfm && (
-                  <div>
-                    <p className="text-gray-400 text-sm">ΑΦΜ</p>
-                    <p className="text-white font-medium font-mono">{request.submitterAfm}</p>
-                  </div>
-                )}
               </div>
             </div>
           </div>
@@ -251,25 +192,35 @@ export function RequestViewModal({ request, isOpen, onClose, onEdit }: RequestVi
             <div className="bg-slate-700/30 rounded-lg p-4 space-y-3">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <p className="text-gray-400 text-sm">Αρμόδιο Τμήμα</p>
-                  <p className="text-white font-medium">{request.department}</p>
+                  <p className="text-gray-400 text-sm">Κατάσταση</p>
+                  <p className="text-white font-medium">{getStatusText(request.status)}</p>
                 </div>
-                {request.assignedTo && (
+                <div>
+                  <p className="text-gray-400 text-sm">Προτεραιότητα</p>
+                  <p className="text-white font-medium">{getPriorityText(request.priority)}</p>
+                </div>
+                {request.sendDate && (
                   <div>
-                    <p className="text-gray-400 text-sm">Ανατέθηκε σε</p>
-                    <p className="text-white font-medium">{request.assignedTo}</p>
+                    <p className="text-gray-400 text-sm">Ημερομηνία Αποστολής</p>
+                    <p className="text-white font-medium">
+                      {new Date(request.sendDate).toLocaleDateString('el-GR', {
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric'
+                      })}
+                    </p>
                   </div>
                 )}
-                {request.estimatedDays && (
+                {request.completionDate && (
                   <div>
-                    <p className="text-gray-400 text-sm">Εκτιμώμενες Ημέρες</p>
-                    <p className="text-white font-medium">{request.estimatedDays} ημέρες</p>
-                  </div>
-                )}
-                {request.actualDays && (
-                  <div>
-                    <p className="text-gray-400 text-sm">Πραγματικές Ημέρες</p>
-                    <p className="text-white font-medium">{request.actualDays} ημέρες</p>
+                    <p className="text-gray-400 text-sm">Ημερομηνία Ολοκλήρωσης</p>
+                    <p className="text-white font-medium">
+                      {new Date(request.completionDate).toLocaleDateString('el-GR', {
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric'
+                      })}
+                    </p>
                   </div>
                 )}
               </div>
@@ -290,38 +241,36 @@ export function RequestViewModal({ request, isOpen, onClose, onEdit }: RequestVi
                   </div>
                   <div className="flex-1">
                     <div className="flex items-center justify-between">
-                      <span className="text-white font-medium">Υποβολή Αιτήματος</span>
+                      <span className="text-white font-medium">Δημιουργία Αιτήματος</span>
                       <span className="text-gray-400 text-sm">
-                        {new Date(request.submissionDate).toLocaleDateString('el-GR', {
+                        {new Date(request.created_at).toLocaleDateString('el-GR', {
                           year: 'numeric',
                           month: 'long',
                           day: 'numeric'
                         })}
                       </span>
                     </div>
-                    <p className="text-gray-400 text-sm">Το αίτημα υποβλήθηκε στο σύστημα</p>
+                    <p className="text-gray-400 text-sm">Το αίτημα καταχωρήθηκε στο σύστημα</p>
                   </div>
                 </div>
 
-                {request.responseDate && (
+                {request.sendDate && (
                   <div className="flex items-start space-x-4">
                     <div className="bg-orange-500 rounded-full p-1">
                       <Clock className="h-3 w-3 text-white" />
                     </div>
                     <div className="flex-1">
                       <div className="flex items-center justify-between">
-                        <span className="text-white font-medium">Απόκριση</span>
+                        <span className="text-white font-medium">Αποστολή</span>
                         <span className="text-gray-400 text-sm">
-                          {new Date(request.responseDate).toLocaleDateString('el-GR', {
+                          {new Date(request.sendDate).toLocaleDateString('el-GR', {
                             year: 'numeric',
                             month: 'long',
                             day: 'numeric'
                           })}
                         </span>
                       </div>
-                      <p className="text-gray-400 text-sm">
-                        Απόκριση σε {responseTime} {responseTime === 1 ? 'ημέρα' : 'ημέρες'}
-                      </p>
+                      <p className="text-gray-400 text-sm">Το αίτημα απεστάλη για επεξεργασία</p>
                     </div>
                   </div>
                 )}

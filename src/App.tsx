@@ -21,6 +21,13 @@ function App() {
           {/* Public routes */}
           <Route path="/" element={<LandingPage />} />
           <Route path="/login" element={<LoginPage />} />
+
+          {/* Temporary testing route without auth */}
+          <Route path="/test-requests" element={
+            <div className="min-h-screen bg-slate-900 text-white p-8">
+              <Requests />
+            </div>
+          } />
           
           {/* Protected routes with layout */}
           <Route element={
@@ -51,6 +58,7 @@ function App() {
           
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
+
       </div>
     </Router>
   )

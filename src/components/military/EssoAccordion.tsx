@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { ChevronDown, ChevronRight, Shield, Users, Search, Filter } from 'lucide-react'
-import { useMilitaryStore } from '../../stores/militaryStore'
-import type { MilitaryPersonnel } from '../../stores/militaryStore'
+import { useMilitaryStore } from '../../stores/realtimeMilitaryStore'
+import type { MilitaryPersonnel } from '../../stores/realtimeMilitaryStore'
 
 interface EssoAccordionProps {
   onSelectPersonnel?: (personnel: MilitaryPersonnel) => void

@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { X, Save, Phone, Mail, Users, Calendar, FileText } from 'lucide-react'
 import { useCommunicationStore, type CommunicationDate } from '../../stores/communicationStore'
-import { useCitizenStore } from '../../stores/citizenStore'
+import { useRealtimeCitizenStore } from '../../stores/realtimeCitizenStore'
 
 interface CommunicationFormProps {
   onClose: () => void
@@ -23,7 +23,7 @@ export const CommunicationForm: React.FC<CommunicationFormProps> = ({
   citizenId
 }) => {
   const { addItem, updateItem, isLoading, error } = useCommunicationStore()
-  const { items: citizens, getItem: getCitizen } = useCitizenStore()
+  const { items: citizens, getItem: getCitizen } = useRealtimeCitizenStore()
   
   const [formData, setFormData] = useState({
     citizen_id: citizenId || communication?.citizen_id || '',

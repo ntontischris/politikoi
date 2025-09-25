@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react'
 import { FileText, Plus, Search, Edit, Eye, Trash2, Clock, CheckCircle, XCircle, AlertCircle, X, Star, TrendingUp } from 'lucide-react'
-import { useRequestStore, useRequestActions } from '../stores/requestStore'
+import { useRequestStore, useRequestActions } from '../stores/realtimeRequestStore'
+import { useRealtimeCitizenStore } from '../stores/realtimeCitizenStore'
 import { RequestForm } from '../components/forms/RequestForm'
 import { RequestViewModal } from '../components/modals/RequestViewModal'
-import type { Request } from '../stores/requestStore'
+import { ResponsiveTable, TableActions, StatusBadge, type TableColumn, type TableAction } from '../components/tables/ResponsiveTable'
+import type { Request } from '../stores/realtimeRequestStore'
 
 interface RequestFormData {
   type: 'citizen' | 'military'
@@ -12,7 +14,7 @@ interface RequestFormData {
   description: string
   citizenId: string
   militaryId: string
-  priority: 'low' | 'medium' | 'high'
+  priority: 'low' | 'medium' | 'high' | 'urgent'
   department: string
   estimatedDays: string
   notes: string
@@ -23,12 +25,13 @@ export function Requests() {
     items: requests,
     isLoading,
     error,
-    loadItems: loadRequests,
+    initialize: loadRequests,
     addItem: addRequest,
     updateItem: updateRequest,
     deleteItem: deleteRequest,
     setError
   } = useRequestStore()
+
 
   const {
     searchRequests,
@@ -37,6 +40,11 @@ export function Requests() {
     getStats,
     getDepartments
   } = useRequestActions()
+
+  const {
+    items: citizens,
+    initialize: loadCitizens
+  } = useRealtimeCitizenStore()
 
   const [searchTerm, setSearchTerm] = useState('')
   const [typeFilter, setTypeFilter] = useState<'' | 'citizen' | 'military'>('')
@@ -64,9 +72,10 @@ export function Requests() {
     const loadData = async () => {
       try {
         await loadRequests()
+        await loadCitizens() // Load citizens data as well
         const rawStats = await getStats()
         const departmentsData = await getDepartments()
-        
+
         // Transform store stats to match component expectations
         const transformedStats = {
           total: rawStats.total,
@@ -80,7 +89,7 @@ export function Requests() {
           by_department: rawStats.by_department || {},
           by_type: rawStats.by_type || {}
         }
-        
+
         setStats(transformedStats)
         setDepartments(departmentsData)
       } catch (error) {
@@ -88,7 +97,7 @@ export function Requests() {
       }
     }
     loadData()
-  }, [])
+  }, [loadRequests, loadCitizens])
 
   // Clear error after 5 seconds
   useEffect(() => {
@@ -98,53 +107,45 @@ export function Requests() {
     }
   }, [error, setError])
 
-  // Get filtered requests (local filtering instead of async search)
-  let filteredRequests = requests?.filter(request => {
-    if (!searchTerm.trim()) return true
-    const term = searchTerm.toLowerCase()
-    return (
-      request.requestType?.toLowerCase().includes(term) ||
-      request.description?.toLowerCase().includes(term)
-    )
-  }) || []
-  
-  if (typeFilter) {
-    filteredRequests = filteredRequests.filter(request => {
-      if (typeFilter === 'citizen') {
-        return request.citizenId && !request.militaryPersonnelId
-      } else if (typeFilter === 'military') {
-        return request.militaryPersonnelId && !request.citizenId
-      }
-      return true
-    })
-  }
-  
-  if (statusFilter) {
-    filteredRequests = filterByStatus(statusFilter)
-  }
-  
-  if (priorityFilter) {
-    filteredRequests = filterByPriority(priorityFilter)
-  }
-  
-  // Department filter not implemented in store
+  // Apply all filters to requests - add null safety
+  const filteredRequests = (requests || []).filter(request => {
 
-  // Apply combined filters
-  if (searchTerm || typeFilter || statusFilter || priorityFilter || departmentFilter) {
-    filteredRequests = requests.filter(request => {
-      const matchesSearch = searchTerm ? (
-        request.requestType.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        request.description.toLowerCase().includes(searchTerm.toLowerCase())
-      ) : true
+    // Search filter
+    const matchesSearch = searchTerm ? (
+      request.requestType?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      request.description?.toLowerCase().includes(searchTerm.toLowerCase())
+    ) : true
 
-      const matchesType = typeFilter ? (request.citizenId ? 'citizen' : 'military') === typeFilter : true
-      const matchesStatus = statusFilter ? request.status === statusFilter : true
-      const matchesPriority = priorityFilter ? request.priority === priorityFilter : true
-      const matchesDepartment = true // Department filter not implemented
+    // Type filter
+    const matchesType = typeFilter ? (
+      typeFilter === 'citizen' ? (() => {
+        // If no citizenId, treat as non-citizen (should not show in citizen filter)
+        if (!request.citizenId) return false
+        const citizen = citizens.find(c => c.id === request.citizenId)
+        // If citizen not found or is military, don't show in citizen filter
+        return citizen && !citizen.isMilitary
+      })() :
+      typeFilter === 'military' ? (() => {
+        // If no citizenId, treat as non-military (should not show in military filter)
+        if (!request.citizenId) return false
+        const citizen = citizens.find(c => c.id === request.citizenId)
+        // Only show if citizen exists and is military
+        return citizen && citizen.isMilitary
+      })() :
+      true
+    ) : true
 
-      return matchesSearch && matchesType && matchesStatus && matchesPriority && matchesDepartment
-    })
-  }
+    // Status filter
+    const matchesStatus = statusFilter ? request.status === statusFilter : true
+
+    // Priority filter
+    const matchesPriority = priorityFilter ? request.priority === priorityFilter : true
+
+    // Department filter (not implemented in store yet)
+    const matchesDepartment = true
+
+    return matchesSearch && matchesType && matchesStatus && matchesPriority && matchesDepartment
+  })
 
   // Stats and departments are now loaded via useEffect
 
@@ -259,32 +260,140 @@ export function Requests() {
   })
 
   // Convert our Request to RequestViewModal format
-  const convertRequestToModalFormat = (request: Request) => ({
-    id: request.id,
-    type: request.citizenId ? 'citizen' as const : 'military' as const,
-    category: '', // Not stored in database
-    title: request.requestType,
-    description: request.description,
-    submitterName: 'Μη διαθέσιμο', // Not stored in database
-    submitterEmail: 'Μη διαθέσιμο', // Not stored in database  
-    submitterPhone: 'Μη διαθέσιμο', // Not stored in database
-    submitterAfm: '', // Not stored in database
-    relatedCitizenId: request.citizenId,
-    relatedMilitaryId: request.militaryPersonnelId,
-    priority: request.priority as 'low' | 'medium' | 'high',
-    status: request.status === 'in-progress' ? 'in_progress' as const : request.status as 'submitted' | 'pending' | 'completed' | 'rejected',
-    assignedTo: '', // Not stored in database
-    department: '', // Not stored in database
-    estimatedDays: 0, // Not stored in database
-    actualDays: 0, // Not stored in database
-    submissionDate: request.created_at,
-    responseDate: undefined, // Not stored in database
-    completionDate: request.completionDate,
-    notes: request.notes || '',
-    attachments: [],
-    created_at: request.created_at,
-    updated_at: request.updated_at
-  })
+  const convertRequestToModalFormat = (request: Request) => {
+    const citizen = request.citizenId ? citizens.find(c => c.id === request.citizenId) : null
+    return {
+      id: request.id,
+      type: request.citizenId ? 'citizen' as const : 'military' as const,
+      category: '', // Not stored in database
+      title: request.requestType,
+      description: request.description,
+      submitterName: citizen ? `${citizen.name} ${citizen.surname}`.trim() : 'Μη διαθέσιμο',
+      submitterEmail: citizen?.email || 'Μη διαθέσιμο',
+      submitterPhone: citizen?.phone || 'Μη διαθέσιμο',
+      submitterAfm: citizen?.afm || '',
+      relatedCitizenId: request.citizenId,
+      relatedMilitaryId: request.militaryPersonnelId,
+      priority: request.priority as 'low' | 'medium' | 'high',
+      status: request.status === 'in-progress' ? 'in_progress' as const : request.status as 'submitted' | 'pending' | 'completed' | 'rejected',
+      assignedTo: '', // Not stored in database
+      department: '', // Not stored in database
+      estimatedDays: 0, // Not stored in database
+      actualDays: 0, // Not stored in database
+      submissionDate: request.created_at,
+      responseDate: undefined, // Not stored in database
+      completionDate: request.completionDate,
+      notes: request.notes || '',
+      attachments: [],
+      created_at: request.created_at,
+      updated_at: request.updated_at
+    }
+  }
+
+  // Table columns configuration
+  const columns: TableColumn<Request>[] = [
+    {
+      key: 'requestType',
+      title: 'Τίτλος',
+      render: (value, request) => (
+        <div className="text-white font-medium truncate max-w-xs" title={value}>
+          {value}
+        </div>
+      ),
+      sortable: true
+    },
+    {
+      key: 'type',
+      title: 'Τύπος',
+      render: (_, request) => {
+        const citizen = request.citizenId ? citizens.find(c => c.id === request.citizenId) : null
+        const type = citizen?.isMilitary ? 'military' : 'citizen'
+        return (
+          <span className="text-gray-300 text-sm">
+            {getTypeText(type)}
+          </span>
+        )
+      }
+    },
+    {
+      key: 'submitter',
+      title: 'Αιτών',
+      render: (_, request) => {
+        const citizen = request.citizenId ? citizens.find(c => c.id === request.citizenId) : null
+        const name = citizen ? `${citizen.name} ${citizen.surname}`.trim() : 'Μη διαθέσιμο'
+        return (
+          <div className="text-white font-medium" title={name}>
+            {name}
+          </div>
+        )
+      },
+      hideOnMobile: true
+    },
+    {
+      key: 'status',
+      title: 'Κατάσταση',
+      render: (value, request) => {
+        const StatusIcon = getStatusIcon(request.status)
+        return (
+          <span className={`px-3 py-1 rounded-full text-xs font-medium border flex items-center gap-1 w-fit ${getStatusColor(request.status)}`}>
+            <StatusIcon className="h-3 w-3" />
+            {getStatusText(request.status)}
+          </span>
+        )
+      },
+      sortable: true
+    },
+    {
+      key: 'priority',
+      title: 'Προτεραιότητα',
+      render: (value, request) => (
+        <span className={`px-3 py-1 rounded-full text-xs font-medium border ${getPriorityColor(request.priority)}`}>
+          {getPriorityText(request.priority)}
+        </span>
+      ),
+      sortable: true,
+      hideOnMobile: true
+    },
+    {
+      key: 'created_at',
+      title: 'Ημερομηνία',
+      render: (value) => (
+        <span className="text-gray-300 text-sm">
+          {new Date(value).toLocaleDateString('el-GR')}
+        </span>
+      ),
+      sortable: true,
+      hideOnMobile: true
+    }
+  ]
+
+  // Table actions configuration
+  const actions: TableAction<Request>[] = [
+    {
+      key: 'view',
+      label: 'Προβολή',
+      icon: <Eye className="w-4 h-4" />,
+      onClick: (request: Request) => handleViewRequest(request),
+      variant: 'primary'
+    },
+    {
+      key: 'edit',
+      label: 'Επεξεργασία',
+      icon: <Edit className="w-4 h-4" />,
+      onClick: (request: Request) => {
+        setSelectedRequest(request)
+        setShowEditModal(true)
+      },
+      variant: 'secondary'
+    },
+    {
+      key: 'delete',
+      label: 'Διαγραφή',
+      icon: <Trash2 className="w-4 h-4" />,
+      onClick: (request: Request) => handleDeleteRequest(request.id),
+      variant: 'danger'
+    }
+  ]
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -377,9 +486,9 @@ export function Requests() {
               Παρακολούθηση και διαχείριση όλων των αιτημάτων πολιτών και στρατιωτικού προσωπικού
             </p>
           </div>
-          <button 
+          <button
             onClick={() => setShowAddModal(true)}
-            disabled={isLoading}
+            disabled={false}
             className="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white px-4 sm:px-6 py-3 rounded-lg flex items-center justify-center transition-colors duration-200 touch-target font-medium w-full sm:w-auto"
           >
             <Plus className="h-5 w-5 mr-2 flex-shrink-0" />
@@ -396,7 +505,7 @@ export function Requests() {
               </div>
               <div className="text-right min-w-0 flex-1 ml-2">
                 <div className="text-base sm:text-2xl font-bold text-white truncate">
-                  {stats.total.toLocaleString('el-GR')}
+                  {filteredRequests.length.toLocaleString('el-GR')}
                 </div>
                 <div className="text-xs sm:text-sm text-gray-400 truncate">Σύνολο</div>
               </div>
@@ -415,7 +524,7 @@ export function Requests() {
               </div>
             </div>
           </div>
-          <div className="bg-slate-800 border border-orange-500/30 rounded-xl p-4 sm:p-6 col-span-2 sm:col-span-1">
+          <div className="bg-slate-800 border border-orange-500/30 rounded-xl p-4 sm:p-6">
             <div className="flex items-center justify-between">
               <div className="p-2 sm:p-3 rounded-lg bg-orange-500/20 flex-shrink-0">
                 <Clock className="h-4 w-4 sm:h-6 sm:w-6 text-orange-400" />
@@ -470,276 +579,89 @@ export function Requests() {
         </div>
       </div>
 
+
       {/* Search and Filters */}
       <div className="bg-slate-800 border border-slate-700 rounded-xl p-4 sm:p-6 mb-6 sm:mb-8">
-        <div className="flex flex-col gap-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Αναζήτηση αιτημάτων..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full bg-slate-700 border border-slate-600 text-white rounded-lg pl-10 pr-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            />
-          </div>
-          <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-            <select 
-              value={typeFilter}
-              onChange={(e) => setTypeFilter(e.target.value as '' | 'citizen' | 'military')}
-              className="bg-slate-700 border border-slate-600 text-white rounded-lg px-3 py-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            >
-              <option value="">Όλοι οι τύποι</option>
-              <option value="citizen">Πολιτικό</option>
-              <option value="military">Στρατιωτικό</option>
-            </select>
-            <select 
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value as '' | 'submitted' | 'in_progress' | 'pending_review' | 'approved' | 'rejected' | 'completed')}
-              className="bg-slate-700 border border-slate-600 text-white rounded-lg px-3 py-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            >
-              <option value="">Καταστάσεις</option>
-              <option value="submitted">Υποβλήθηκε</option>
-              <option value="in_progress">Σε Εξέλιξη</option>
-              <option value="pending_review">Εκκρεμεί Έλεγχος</option>
-              <option value="approved">Εγκρίθηκε</option>
-              <option value="rejected">Απορρίφθηκε</option>
-              <option value="completed">Ολοκληρώθηκε</option>
-            </select>
-            <select 
-              value={priorityFilter}
-              onChange={(e) => setPriorityFilter(e.target.value as '' | 'low' | 'medium' | 'high' | 'urgent')}
-              className="bg-slate-700 border border-slate-600 text-white rounded-lg px-3 py-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            >
-              <option value="">Προτεραιότητες</option>
-              <option value="low">Χαμηλή</option>
-              <option value="medium">Μέση</option>
-              <option value="high">Υψηλή</option>
-              <option value="urgent">Επείγουσα</option>
-            </select>
-            <select 
-              value={departmentFilter}
-              onChange={(e) => setDepartmentFilter(e.target.value)}
-              className="bg-slate-700 border border-slate-600 text-white rounded-lg px-3 py-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 xs:col-span-2 sm:col-span-1"
-            >
-              <option value="">Τμήματα</option>
-              {departments.map(dept => (
-                <option key={dept} value={dept}>{dept}</option>
-              ))}
-            </select>
-            <button
-              onClick={() => {
-                setSearchTerm('')
-                setTypeFilter('')
-                setStatusFilter('')
-                setPriorityFilter('')
-                setDepartmentFilter('')
-              }}
-              className="bg-slate-600 hover:bg-slate-500 text-white px-4 py-3 rounded-lg transition-colors duration-200 touch-target font-medium text-sm xs:col-span-2 sm:col-span-3 lg:col-span-1"
-            >
-              Καθαρισμός
-            </button>
-          </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4">
+          <select
+            value={typeFilter}
+            onChange={(e) => setTypeFilter(e.target.value as '' | 'citizen' | 'military')}
+            className="bg-slate-700 border border-slate-600 text-white rounded-lg px-3 py-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          >
+            <option value="">Όλοι οι τύποι</option>
+            <option value="citizen">Πολιτικό</option>
+            <option value="military">Στρατιωτικό</option>
+          </select>
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value as '' | 'submitted' | 'in_progress' | 'pending_review' | 'approved' | 'rejected' | 'completed')}
+            className="bg-slate-700 border border-slate-600 text-white rounded-lg px-3 py-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          >
+            <option value="">Καταστάσεις</option>
+            <option value="submitted">Υποβλήθηκε</option>
+            <option value="in_progress">Σε Εξέλιξη</option>
+            <option value="pending_review">Εκκρεμεί Έλεγχος</option>
+            <option value="approved">Εγκρίθηκε</option>
+            <option value="rejected">Απορρίφθηκε</option>
+            <option value="completed">Ολοκληρώθηκε</option>
+          </select>
+          <select
+            value={priorityFilter}
+            onChange={(e) => setPriorityFilter(e.target.value as '' | 'low' | 'medium' | 'high' | 'urgent')}
+            className="bg-slate-700 border border-slate-600 text-white rounded-lg px-3 py-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          >
+            <option value="">Προτεραιότητες</option>
+            <option value="low">Χαμηλή</option>
+            <option value="medium">Μέση</option>
+            <option value="high">Υψηλή</option>
+            <option value="urgent">Επείγουσα</option>
+          </select>
+          <select
+            value={departmentFilter}
+            onChange={(e) => setDepartmentFilter(e.target.value)}
+            className="bg-slate-700 border border-slate-600 text-white rounded-lg px-3 py-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          >
+            <option value="">Τμήματα</option>
+            {departments.map(dept => (
+              <option key={dept} value={dept}>{dept}</option>
+            ))}
+          </select>
+          <button
+            onClick={() => {
+              setSearchTerm('')
+              setTypeFilter('')
+              setStatusFilter('')
+              setPriorityFilter('')
+              setDepartmentFilter('')
+            }}
+            className="bg-slate-600 hover:bg-slate-500 text-white px-4 py-3 rounded-lg transition-colors duration-200 touch-target font-medium text-sm sm:col-span-2 lg:col-span-4 xl:col-span-1"
+          >
+            Καθαρισμός
+          </button>
         </div>
       </div>
 
-      {/* Requests List Header */}
-      <div className="bg-slate-800 border border-slate-700 rounded-t-xl px-4 sm:px-6 py-4 border-b">
-        <h2 className="text-lg sm:text-xl font-semibold text-white flex items-center">
-          Λίστα Αιτημάτων ({filteredRequests.length})
-          {isLoading && (
-            <span className="ml-3 inline-flex items-center">
-              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
-              <span className="ml-2 text-sm text-gray-400">Φόρτωση...</span>
-            </span>
-          )}
-        </h2>
-      </div>
-
-      {/* Desktop Table View */}
-      <div className="mobile-table-hidden bg-slate-800 border-x border-b border-slate-700 rounded-b-xl overflow-x-auto">
-        <table className="w-full">
-          <thead>
-            <tr className="bg-slate-700/50">
-              <th className="text-left py-4 px-6 text-gray-300 font-medium">Τίτλος</th>
-              <th className="text-left py-4 px-6 text-gray-300 font-medium">Τύπος</th>
-              <th className="text-left py-4 px-6 text-gray-300 font-medium">Αιτών</th>
-              <th className="text-left py-4 px-6 text-gray-300 font-medium">Κατάσταση</th>
-              <th className="text-left py-4 px-6 text-gray-300 font-medium">Προτεραιότητα</th>
-              <th className="text-left py-4 px-6 text-gray-300 font-medium">Ημερομηνία</th>
-              <th className="text-left py-4 px-6 text-gray-300 font-medium">Ενέργειες</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredRequests.length === 0 ? (
-              <tr>
-                <td colSpan={7} className="text-center py-12 text-gray-400">
-                  <FileText className="h-12 w-12 mx-auto mb-4 text-gray-500" />
-                  {searchTerm || typeFilter || statusFilter || priorityFilter || departmentFilter ? 'Δεν βρέθηκαν αιτήματα με αυτά τα κριτήρια' : 'Δεν υπάρχουν καταχωρημένα αιτήματα'}
-                </td>
-              </tr>
-            ) : (
-              filteredRequests.map((request) => {
-                const StatusIcon = getStatusIcon(request.status)
-                return (
-                  <tr key={request.id} className="border-b border-slate-700 hover:bg-slate-700/30 transition-colors">
-                    <td className="py-4 px-6">
-                      <div className="text-white font-medium truncate max-w-xs" title={request.requestType}>
-                        {request.requestType}
-                      </div>
-                    </td>
-                    <td className="py-4 px-6">
-                      <span className="text-gray-300 text-sm">
-                        {getTypeText(request.citizenId ? 'citizen' : 'military')}
-                      </span>
-                    </td>
-                    <td className="py-4 px-6">
-                      <div className="text-white font-medium">
-                        Μη διαθέσιμο
-                      </div>
-                    </td>
-                    <td className="py-4 px-6">
-                      <span className={`px-3 py-1 rounded-full text-xs font-medium border flex items-center gap-1 w-fit ${getStatusColor(request.status)}`}>
-                        <StatusIcon className="h-3 w-3" />
-                        {getStatusText(request.status)}
-                      </span>
-                    </td>
-                    <td className="py-4 px-6">
-                      <span className={`px-3 py-1 rounded-full text-xs font-medium border ${getPriorityColor(request.priority)}`}>
-                        {getPriorityText(request.priority)}
-                      </span>
-                    </td>
-                    <td className="py-4 px-6 text-gray-300 text-sm">
-                      {new Date(request.created_at).toLocaleDateString('el-GR')}
-                    </td>
-                    <td className="py-4 px-6">
-                      <div className="flex items-center space-x-2">
-                        <button 
-                          onClick={() => handleViewRequest(request)}
-                          className="text-blue-400 hover:text-blue-300 p-1 touch-target"
-                          title="Προβολή"
-                        >
-                          <Eye className="h-4 w-4" />
-                        </button>
-                        <button 
-                          onClick={() => {
-                            setSelectedRequest(request)
-                            setShowEditModal(true)
-                          }}
-                          className="text-green-400 hover:text-green-300 p-1 touch-target"
-                          title="Επεξεργασία"
-                        >
-                          <Edit className="h-4 w-4" />
-                        </button>
-                        <button 
-                          onClick={() => handleDeleteRequest(request.id)}
-                          className={`p-1 transition-colors touch-target ${
-                            deleteConfirm === request.id
-                              ? 'text-red-300 bg-red-500/20 rounded'
-                              : 'text-red-400 hover:text-red-300'
-                          }`}
-                          title={deleteConfirm === request.id ? 'Κάντε κλικ για επιβεβαίωση' : 'Διαγραφή'}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                )
-              })
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      {/* Mobile Card View */}
-      <div className="mobile-card-only space-y-4 bg-slate-800 border-x border-b border-slate-700 rounded-b-xl p-4">
-        {filteredRequests.length === 0 ? (
-          <div className="text-center py-12 text-gray-400">
-            <FileText className="h-12 w-12 mx-auto mb-4 text-gray-500" />
-            <p className="text-sm">
-              {searchTerm || typeFilter || statusFilter || priorityFilter || departmentFilter ? 'Δεν βρέθηκαν αιτήματα με αυτά τα κριτήρια' : 'Δεν υπάρχουν καταχωρημένα αιτήματα'}
-            </p>
-          </div>
-        ) : (
-          filteredRequests.map((request) => {
-            const StatusIcon = getStatusIcon(request.status)
-            return (
-              <div key={request.id} className="bg-slate-700/50 rounded-lg p-4 border border-slate-600">
-                {/* Header */}
-                <div className="flex items-start justify-between mb-3">
-                  <div className="min-w-0 flex-1">
-                    <h3 className="text-white font-semibold text-base truncate" title={request.requestType}>
-                      {request.requestType}
-                    </h3>
-                    <p className="text-gray-400 text-sm">{getTypeText(request.citizenId ? 'citizen' : 'military')}</p>
-                  </div>
-                  <div className="flex flex-col items-end space-y-1 flex-shrink-0 ml-2">
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium border flex items-center gap-1 ${getStatusColor(request.status)}`}>
-                      <StatusIcon className="h-3 w-3" />
-                      {getStatusText(request.status)}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Details */}
-                <div className="space-y-2 mb-4">
-                  <div className="flex items-center justify-between text-sm">
-                    <div className="flex items-center">
-                      <Clock className="h-4 w-4 text-gray-400 mr-2 flex-shrink-0" />
-                      <span className="text-gray-300">{new Date(request.created_at).toLocaleDateString('el-GR')}</span>
-                    </div>
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium border ${getPriorityColor(request.priority)}`}>
-                      {getPriorityText(request.priority)}
-                    </span>
-                  </div>
-                  <div className="flex items-center text-sm">
-                    <FileText className="h-4 w-4 text-gray-400 mr-2 flex-shrink-0" />
-                    <span className="text-gray-300 truncate">Μη διαθέσιμο</span>
-                  </div>
-                  {request.description && (
-                    <div className="text-sm text-gray-300 bg-slate-800/50 rounded p-2 mt-2">
-                      <p className="line-clamp-2">{request.description}</p>
-                    </div>
-                  )}
-                </div>
-
-                {/* Actions */}
-                <div className="flex items-center justify-end space-x-2">
-                  <button 
-                    onClick={() => handleViewRequest(request)}
-                    className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg text-sm font-medium transition-colors touch-target flex items-center"
-                  >
-                    <Eye className="h-4 w-4 mr-1" />
-                    Προβολή
-                  </button>
-                  <button 
-                    onClick={() => {
-                      setSelectedRequest(request)
-                      setShowEditModal(true)
-                    }}
-                    className="bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-lg text-sm font-medium transition-colors touch-target flex items-center"
-                  >
-                    <Edit className="h-4 w-4 mr-1" />
-                    Επεξεργασία
-                  </button>
-                  <button 
-                    onClick={() => handleDeleteRequest(request.id)}
-                    className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors touch-target flex items-center ${
-                      deleteConfirm === request.id
-                        ? 'bg-red-600 hover:bg-red-700 text-white'
-                        : 'bg-red-500/20 hover:bg-red-500/30 text-red-400'
-                    }`}
-                  >
-                    <Trash2 className="h-4 w-4 mr-1" />
-                    {deleteConfirm === request.id ? 'Επιβεβαίωση' : 'Διαγραφή'}
-                  </button>
-                </div>
-              </div>
-            )
-          })
-        )}
-      </div>
+      {/* Responsive Table */}
+      <ResponsiveTable<Request>
+        data={filteredRequests || []}
+        columns={columns}
+        actions={actions}
+        isLoading={isLoading}
+        emptyState={{
+          icon: <FileText className="h-12 w-12 mx-auto mb-4 text-gray-500" />,
+          title: searchTerm || typeFilter || statusFilter || priorityFilter || departmentFilter
+            ? 'Δεν βρέθηκαν αιτήματα με αυτά τα κριτήρια'
+            : 'Δεν υπάρχουν καταχωρημένα αιτήματα',
+          description: searchTerm || typeFilter || statusFilter || priorityFilter || departmentFilter
+            ? 'Δοκιμάστε να αλλάξετε τα φίλτρα αναζήτησης'
+            : 'Δημιουργήστε το πρώτο αίτημα κάνοντας κλικ στο κουμπί "Νέο Αίτημα"'
+        }}
+        searchable={false} // We handle search with external filters
+        sortable={true}
+        viewModes={['table']}
+        defaultViewMode="table"
+        onRowClick={(request) => handleViewRequest(request)}
+      />
 
       {/* Modals */}
       <RequestForm

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
-import { X, Save, User, Phone, MapPin, FileText, Shield, Calendar, Users } from 'lucide-react'
+import { X, Save, User, Phone, MapPin, FileText, Shield, Calendar, Users, ChevronDown, AlertTriangle, CheckCircle } from 'lucide-react'
+import { useResponsive, useTouchDevice } from '../../hooks/useResponsive'
 
 export interface CitizenFormData {
   // Required fields
@@ -191,11 +192,24 @@ const militaryTransferTypes = [
 ]
 
 export function CitizenForm({ isOpen, onClose, onSubmit, initialData, mode }: CitizenFormProps) {
+  // Responsive hooks
+  const { isMobile, isTablet } = useResponsive()
+  const { isTouchDevice } = useTouchDevice()
+
+  // Enhanced state management
   const [formData, setFormData] = useState<CitizenFormData>(initialFormData)
   const [errors, setErrors] = useState<Partial<CitizenFormData>>({})
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [showRequestForm, setShowRequestForm] = useState(false)
+  const [currentStep, setCurrentStep] = useState(1)
+  const [totalSteps] = useState(isMobile ? 4 : 1) // Multi-step on mobile
+  const [expandedSections, setExpandedSections] = useState({
+    basic: true,
+    contact: !isMobile,
+    request: !isMobile,
+    military: !isMobile
+  })
 
   // Update form data when initialData changes
   useEffect(() => {

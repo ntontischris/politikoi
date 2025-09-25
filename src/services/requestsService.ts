@@ -4,10 +4,11 @@ import { supabase } from '../lib/supabase'
 export interface Request {
   id: string
   citizen_id?: string | null
+  military_personnel_id?: string | null
   request_type: string
   description: string
   status?: 'pending' | 'in-progress' | 'completed' | 'rejected' | 'ΕΚΚΡΕΜΕΙ' | 'ΟΛΟΚΛΗΡΩΘΗΚΕ' | 'ΑΠΟΡΡΙΦΘΗΚΕ'
-  priority?: 'low' | 'medium' | 'high'
+  priority?: 'low' | 'medium' | 'high' | 'urgent'
   send_date?: string | null
   completion_date?: string | null
   notes?: string | null

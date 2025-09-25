@@ -3,8 +3,8 @@ import { Shield, Plus, FileText, Clock, Star, TrendingUp, Calendar, Users, Edit,
 import { EssoAccordion } from '../components/military/EssoAccordion'
 import { MilitaryPersonnelForm } from '../components/forms/MilitaryPersonnelForm'
 import { MilitaryViewModal } from '../components/modals/MilitaryViewModal'
-import { useMilitaryStore, useMilitaryActions } from '../stores/militaryStore'
-import type { MilitaryPersonnel as BaseMilitaryPersonnel } from '../stores/militaryStore'
+import { useMilitaryStore, useMilitaryActions } from '../stores/realtimeMilitaryStore'
+import type { MilitaryPersonnel as BaseMilitaryPersonnel } from '../stores/realtimeMilitaryStore'
 
 // Extended interface to include the additional fields needed by the view modal
 interface MilitaryPersonnel extends BaseMilitaryPersonnel {
@@ -33,7 +33,7 @@ export function MilitaryEsso() {
     items: baseMilitaryPersonnel,
     addItem: addMilitaryPersonnel,
     updateItem: updateMilitaryPersonnel,
-    loadItems: loadMilitaryPersonnel,
+    initialize: loadMilitaryPersonnel,
     isLoading
   } = useMilitaryStore()
   

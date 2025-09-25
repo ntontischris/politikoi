@@ -1,4 +1,4 @@
-import { createSmartStore, CacheProfiles } from './baseStore'
+import { createRealtimeStore } from './realtimeStore'
 import { communicationService, type CommunicationDate as DBCommunicationDate, type CommunicationDateInput, type CommunicationDateWithCitizen } from '../services/communicationService'
 
 // Frontend interface that maps to backend data
@@ -69,13 +69,12 @@ const communicationServiceAdapter = {
   delete: (id: string) => communicationService.deleteCommunication(id)
 }
 
-// Create the smart communication store
-export const useCommunicationStore = createSmartStore<CommunicationDate, CommunicationDateInput, typeof communicationServiceAdapter>({
-  storeName: 'communications',
-  cacheConfig: CacheProfiles.DYNAMIC, // Communications change frequently
-  service: communicationServiceAdapter,
+// Create the realtime communication store
+export const useCommunicationStore = createRealtimeStore<CommunicationDate>({
+  tableName: 'communications',
   transformFromDB: transformDBCommunication,
-  transformToDB: transformToDBInput
+  transformToDB: transformToDBInput,
+  service: communicationServiceAdapter
 })
 
 // Additional communication-specific methods

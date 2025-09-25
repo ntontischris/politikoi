@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react'
-import { Users, Search, Filter, Edit, Trash2, Eye, UserPlus, AlertCircle, X, Phone, Mail, MapPin, Shield } from 'lucide-react'
-import { useCitizenActions } from '../stores/citizenStore'
+import { Users, Search, Filter, Edit, Trash2, Eye, UserPlus, AlertCircle, X, Phone, Mail, MapPin, Shield, ChevronDown, SortAsc, Grid3X3, List, Activity } from 'lucide-react'
+import { useRealtimeCitizenStore } from '../stores/realtimeCitizenStore'
 import { CitizenForm, type CitizenFormData } from '../components/forms/CitizenForm'
 import { CitizenViewModal } from '../components/modals/CitizenViewModal'
 import { RequestForm } from '../components/forms/RequestForm'
-import { useRequestActions } from '../stores/requestStore'
-import type { Citizen } from '../stores/citizenStore'
+import { useRequestActions } from '../stores/realtimeRequestStore'
+import { useResponsive, useTouchDevice } from '../hooks/useResponsive'
+import type { Citizen } from '../stores/realtimeCitizenStore'
 
 
 export function Citizens() {
@@ -13,17 +14,20 @@ export function Citizens() {
     items: citizens,
     isLoading,
     error,
-    loadItems,
+    initialize: loadItems,
     addItem: addCitizen,
     updateItem: updateCitizen,
     deleteItem: deleteCitizen,
-    searchCitizens,
-    getStats,
     setError
-  } = useCitizenActions()
+  } = useRealtimeCitizenStore()
 
-  const { loadItems: loadRequests } = useRequestActions()
+  const { initialize: loadRequests } = useRequestActions()
 
+  // Responsive hooks
+  const { isMobile, isTablet, isDesktop } = useResponsive()
+  const { isTouchDevice } = useTouchDevice()
+
+  // Enhanced state management
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState<'' | 'active' | 'inactive'>('')
   const [militaryFilter, setMilitaryFilter] = useState<'' | 'military' | 'civilian'>('')
@@ -40,13 +44,16 @@ export function Citizens() {
   const [showRequestForm, setShowRequestForm] = useState(false)
   const [requestFormCitizenId, setRequestFormCitizenId] = useState<string | null>(null)
 
-  // Load data on component mount
+  // New responsive-specific states
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>(isMobile ? 'list' : 'grid')
+  const [sortBy, setSortBy] = useState<'name' | 'date' | 'status'>('name')
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
+
+  // Load data on component mount and calculate initial stats
   useEffect(() => {
     const loadData = async () => {
       try {
         await loadItems()
-        const statsData = await getStats()
-        setStats(statsData)
       } catch (error) {
         console.error('Error loading citizens:', error)
       }
@@ -54,40 +61,74 @@ export function Citizens() {
     loadData()
   }, [])
 
-  // Handle search with debouncing
+  // Calculate stats whenever citizens change
   useEffect(() => {
-    const searchData = async () => {
-      if (searchTerm.trim()) {
-        try {
-          await searchCitizens(searchTerm)
-          const statsData = await getStats()
-          setStats(statsData)
-        } catch (error) {
-          console.error('Error searching citizens:', error)
-        }
-      } else {
-        // If search term is empty, reload all citizens
-        try {
-          await loadItems()
-          const statsData = await getStats()
-          setStats(statsData)
-        } catch (error) {
-          console.error('Error loading citizens:', error)
-        }
-      }
+    const now = new Date()
+    const thirtyDaysAgo = new Date(now.getTime() - (30 * 24 * 60 * 60 * 1000))
+
+    setStats({
+      total: citizens.length,
+      active: citizens.filter(c => c.status === 'ΟΛΟΚΛΗΡΩΜΕΝΑ').length,
+      inactive: citizens.filter(c => c.status === 'ΜΗ ΟΛΟΚΛΗΡΩΜΕΝΑ').length,
+      recent: citizens.filter(c => new Date(c.created_at) >= thirtyDaysAgo).length
+    })
+  }, [citizens])
+
+  // Handle search with debouncing - now client-side filtering
+  useEffect(() => {
+    // No more server-side search - filtering happens in filteredCitizens
+    // Just update stats when search term changes
+    const updateStats = () => {
+      const filtered = citizens.filter(citizen => {
+        if (!searchTerm.trim()) return true
+        const search = searchTerm.toLowerCase()
+        return citizen.name.toLowerCase().includes(search) ||
+               citizen.surname.toLowerCase().includes(search) ||
+               citizen.phone?.toLowerCase().includes(search) ||
+               citizen.email?.toLowerCase().includes(search) ||
+               citizen.afm?.toLowerCase().includes(search)
+      })
+
+      const now = new Date()
+      const thirtyDaysAgo = new Date(now.getTime() - (30 * 24 * 60 * 60 * 1000))
+
+      setStats({
+        total: filtered.length,
+        active: filtered.filter(c => c.status === 'ΟΛΟΚΛΗΡΩΜΕΝΑ').length,
+        inactive: filtered.filter(c => c.status === 'ΜΗ ΟΛΟΚΛΗΡΩΜΕΝΑ').length,
+        recent: filtered.filter(c => new Date(c.created_at) >= thirtyDaysAgo).length
+      })
     }
 
-    const debounceTimer = setTimeout(searchData, 500)
+    const debounceTimer = setTimeout(updateStats, 300)
     return () => clearTimeout(debounceTimer)
-  }, [searchTerm])
+  }, [searchTerm, citizens])
 
-  // Filter citizens locally after async operations
+  // Filter citizens locally with search term and filters
   const filteredCitizens = citizens.filter(citizen => {
-    if (statusFilter && citizen.status !== statusFilter) return false
+    // Search filter
+    if (searchTerm.trim()) {
+      const search = searchTerm.toLowerCase()
+      const matchesSearch = citizen.name.toLowerCase().includes(search) ||
+                           citizen.surname.toLowerCase().includes(search) ||
+                           citizen.phone?.toLowerCase().includes(search) ||
+                           citizen.email?.toLowerCase().includes(search) ||
+                           citizen.afm?.toLowerCase().includes(search)
+      if (!matchesSearch) return false
+    }
+
+    // Status filter
+    if (statusFilter === 'active' && citizen.status !== 'ΟΛΟΚΛΗΡΩΜΕΝΑ') return false
+    if (statusFilter === 'inactive' && citizen.status === 'ΟΛΟΚΛΗΡΩΜΕΝΑ') return false
+
+    // Military filter
     if (militaryFilter === 'military' && !citizen.isMilitary) return false
     if (militaryFilter === 'civilian' && citizen.isMilitary) return false
+
+    // Location filters
     if (cityFilter && !citizen.region?.toLowerCase().includes(cityFilter.toLowerCase())) return false
     if (municipalityFilter && citizen.municipality && !citizen.municipality.toLowerCase().includes(municipalityFilter.toLowerCase())) return false
+
     return true
   })
 
@@ -98,9 +139,7 @@ export function Citizens() {
         status: 'ΕΚΚΡΕΜΗ' as const
       })
       setShowAddModal(false)
-      // Refresh stats after adding
-      const statsData = await getStats()
-      setStats(statsData)
+      // Stats will be updated automatically via useEffect
     } catch (error) {
       console.error('Add citizen error:', error)
       throw error // Re-throw to keep form open
@@ -117,9 +156,7 @@ export function Citizens() {
       await updateCitizen(citizenToEdit.id, formData)
       setShowEditModal(false)
       setCitizenToEdit(null)
-      // Refresh stats after updating
-      const statsData = await getStats()
-      setStats(statsData)
+      // Stats will be updated automatically via useEffect
     } catch (error) {
       console.error('Update citizen error:', error)
       throw error // Re-throw to keep form open
@@ -136,9 +173,7 @@ export function Citizens() {
     try {
       await deleteCitizen(id)
       setDeleteConfirm(null)
-      // Refresh stats after deleting
-      const statsData = await getStats()
-      setStats(statsData)
+      // Stats will be updated automatically via useEffect
     } catch (error) {
       // Error is handled by the store
     }
@@ -174,10 +209,8 @@ export function Citizens() {
     setRequestFormCitizenId(null)
     // Reload data to refresh any requests that were added
     try {
-      await loadItems()
+      await loadItems() // This will automatically update stats via useEffect
       await loadRequests()
-      const statsData = await getStats()
-      setStats(statsData)
     } catch (error) {
       console.error('Error reloading data after request form close:', error)
     }
@@ -245,96 +278,148 @@ export function Citizens() {
   }, [error, setError])
 
   return (
-    <div className="responsive-padding py-4 sm:py-6 lg:py-8">
-      {/* Error Alert */}
+    <div className="container-responsive py-4 sm:py-6 lg:py-8 safe-y">
+      {/* Enhanced Error Alert */}
       {error && (
-        <div className="mb-4 sm:mb-6 bg-red-500/20 border border-red-500/30 text-red-400 px-4 py-3 rounded-lg flex items-center">
-          <AlertCircle className="h-5 w-5 mr-2 flex-shrink-0" />
-          <span className="flex-1 text-sm sm:text-base">{error}</span>
-          <button 
+        <div className="mb-6 bg-red-500/20 border border-red-500/30 text-red-400 px-4 py-3 rounded-2xl flex items-center backdrop-blur-sm animate-slide-in">
+          <AlertCircle className="h-5 w-5 mr-3 flex-shrink-0" />
+          <span className="flex-1 text-fluid-sm">{error}</span>
+          <button
             onClick={() => setError(null)}
-            className="ml-2 text-red-400 hover:text-red-300 touch-target flex items-center justify-center"
+            className="ml-3 text-red-400 hover:text-red-300 touch-target-lg flex items-center justify-center rounded-lg hover:bg-red-500/20 transition-colors"
           >
             <X className="h-4 w-4" />
           </button>
         </div>
       )}
 
-      {/* Header */}
-      <div className="mb-6 sm:mb-8">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
+      {/* Enhanced Responsive Header */}
+      <div className="mb-6 sm:mb-8 lg:mb-10">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
           <div className="min-w-0 flex-1">
-            <h1 className="text-2xl sm:text-3xl font-bold text-white mb-2 truncate">
+            <h1 className="text-fluid-3xl font-bold text-white mb-2 bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">
               Διαχείριση Πολιτών
             </h1>
-            <p className="text-sm sm:text-base text-gray-400">
+            <p className="text-fluid-sm text-gray-400 max-w-2xl">
               Διαχείριση και παρακολούθηση όλων των εγγεγραμμένων πολιτών
             </p>
           </div>
-          <button 
-            onClick={() => setShowAddModal(true)}
-            disabled={isLoading}
-            className="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white px-4 sm:px-6 py-3 rounded-lg flex items-center justify-center transition-colors duration-200 touch-target font-medium w-full sm:w-auto"
-          >
-            <UserPlus className="h-5 w-5 mr-2 flex-shrink-0" />
-            <span>Νέος Πολίτης</span>
-          </button>
+
+          <div className="flex items-center gap-3">
+            {/* View mode toggle - Desktop only */}
+            {!isMobile && (
+              <div className="flex items-center bg-slate-800/70 rounded-xl border border-slate-700/50 p-1">
+                <button
+                  onClick={() => setViewMode('grid')}
+                  className={`p-2 rounded-lg transition-colors touch-target ${
+                    viewMode === 'grid'
+                      ? 'bg-blue-600 text-white'
+                      : 'text-gray-400 hover:text-white hover:bg-slate-700/50'
+                  }`}
+                  title="Grid View"
+                >
+                  <Grid3X3 className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => setViewMode('list')}
+                  className={`p-2 rounded-lg transition-colors touch-target ${
+                    viewMode === 'list'
+                      ? 'bg-blue-600 text-white'
+                      : 'text-gray-400 hover:text-white hover:bg-slate-700/50'
+                  }`}
+                  title="List View"
+                >
+                  <List className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+
+            {/* Add Citizen Button */}
+            <button
+              onClick={() => setShowAddModal(true)}
+              disabled={isLoading}
+              className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 disabled:from-gray-600 disabled:to-gray-700 text-white px-4 sm:px-6 py-3 rounded-xl flex items-center justify-center transition-all duration-200 touch-target-lg font-medium w-full sm:w-auto shadow-lg hover:shadow-xl active:scale-[0.98] group"
+            >
+              <div className="absolute inset-0 bg-gradient-to-r from-white/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity rounded-xl" />
+              <UserPlus className="h-5 w-5 mr-2 flex-shrink-0 z-10" />
+              <span className="z-10">{isMobile ? 'Νέος' : 'Νέος Πολίτης'}</span>
+            </button>
+          </div>
         </div>
 
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-3 sm:gap-6 mb-6 sm:mb-8">
-          <div className="bg-slate-800 border border-blue-500/30 rounded-xl p-4 sm:p-6">
-            <div className="flex items-center justify-between">
-              <div className="p-2 sm:p-3 rounded-lg bg-blue-500/20 flex-shrink-0">
-                <Users className="h-5 w-5 sm:h-6 sm:w-6 text-blue-400" />
-              </div>
-              <div className="text-right min-w-0 flex-1 ml-2">
-                <div className="text-lg sm:text-2xl font-bold text-white truncate">
-                  {stats.total.toLocaleString('el-GR')}
+        {/* Ultra-Responsive Stats Cards */}
+        <div className="grid grid-auto-fit gap-4 mb-6 sm:mb-8">
+          {[
+            {
+              title: 'Σύνολο Πολιτών',
+              shortTitle: 'Σύνολο',
+              value: stats.total,
+              icon: Users,
+              color: 'text-blue-400',
+              bgColor: 'bg-blue-500/20',
+              borderColor: 'border-blue-500/30',
+              gradientFrom: 'from-blue-500',
+              gradientTo: 'to-cyan-500'
+            },
+            {
+              title: 'Ενεργοί Πολίτες',
+              shortTitle: 'Ενεργοί',
+              value: stats.active,
+              icon: Activity,
+              color: 'text-green-400',
+              bgColor: 'bg-green-500/20',
+              borderColor: 'border-green-500/30',
+              gradientFrom: 'from-green-500',
+              gradientTo: 'to-emerald-500'
+            },
+            {
+              title: 'Ανενεργοί Πολίτες',
+              shortTitle: 'Ανενεργοί',
+              value: stats.inactive,
+              icon: Users,
+              color: 'text-red-400',
+              bgColor: 'bg-red-500/20',
+              borderColor: 'border-red-500/30',
+              gradientFrom: 'from-red-500',
+              gradientTo: 'to-pink-500'
+            },
+            {
+              title: 'Νέοι (30 ημέρες)',
+              shortTitle: 'Νέοι',
+              value: stats.recent,
+              icon: UserPlus,
+              color: 'text-yellow-400',
+              bgColor: 'bg-yellow-500/20',
+              borderColor: 'border-yellow-500/30',
+              gradientFrom: 'from-yellow-500',
+              gradientTo: 'to-orange-500'
+            }
+          ].map((stat, index) => (
+            <div
+              key={index}
+              className={`group relative overflow-hidden bg-slate-800/70 backdrop-blur-sm border ${stat.borderColor} rounded-2xl p-4 sm:p-5 lg:p-6 hover:bg-slate-700/80 transition-all duration-300 hover:shadow-xl hover:shadow-slate-900/50 hover:scale-[1.02]`}
+            >
+              {/* Gradient background overlay */}
+              <div className={`absolute inset-0 bg-gradient-to-br ${stat.gradientFrom} ${stat.gradientTo} opacity-0 group-hover:opacity-10 transition-opacity duration-300`} />
+
+              <div className="relative z-10">
+                <div className="flex items-center justify-between mb-3">
+                  <div className={`p-2.5 rounded-xl ${stat.bgColor} group-hover:scale-110 transition-transform duration-300`}>
+                    <stat.icon className={`h-5 w-5 ${stat.color}`} />
+                  </div>
                 </div>
-                <div className="text-xs sm:text-sm text-gray-400 truncate">Σύνολο Πολιτών</div>
+
+                <div className="space-y-1">
+                  <div className="text-2xl sm:text-3xl font-bold text-white leading-none">
+                    {stat.value.toLocaleString('el-GR')}
+                  </div>
+                  <div className="text-xs sm:text-sm text-gray-400 font-medium">
+                    {isMobile && stat.shortTitle ? stat.shortTitle : stat.title}
+                  </div>
+                </div>
               </div>
             </div>
-          </div>
-          <div className="bg-slate-800 border border-green-500/30 rounded-xl p-4 sm:p-6">
-            <div className="flex items-center justify-between">
-              <div className="p-2 sm:p-3 rounded-lg bg-green-500/20 flex-shrink-0">
-                <Users className="h-5 w-5 sm:h-6 sm:w-6 text-green-400" />
-              </div>
-              <div className="text-right min-w-0 flex-1 ml-2">
-                <div className="text-lg sm:text-2xl font-bold text-white truncate">
-                  {stats.active.toLocaleString('el-GR')}
-                </div>
-                <div className="text-xs sm:text-sm text-gray-400 truncate">Ενεργοί</div>
-              </div>
-            </div>
-          </div>
-          <div className="bg-slate-800 border border-red-500/30 rounded-xl p-4 sm:p-6">
-            <div className="flex items-center justify-between">
-              <div className="p-2 sm:p-3 rounded-lg bg-red-500/20 flex-shrink-0">
-                <Users className="h-5 w-5 sm:h-6 sm:w-6 text-red-400" />
-              </div>
-              <div className="text-right min-w-0 flex-1 ml-2">
-                <div className="text-lg sm:text-2xl font-bold text-white truncate">
-                  {stats.inactive.toLocaleString('el-GR')}
-                </div>
-                <div className="text-xs sm:text-sm text-gray-400 truncate">Ανενεργοί</div>
-              </div>
-            </div>
-          </div>
-          <div className="bg-slate-800 border border-yellow-500/30 rounded-xl p-4 sm:p-6 xs:col-span-2 sm:col-span-2 md:col-span-1">
-            <div className="flex items-center justify-between">
-              <div className="p-2 sm:p-3 rounded-lg bg-yellow-500/20 flex-shrink-0">
-                <UserPlus className="h-5 w-5 sm:h-6 sm:w-6 text-yellow-400" />
-              </div>
-              <div className="text-right min-w-0 flex-1 ml-2">
-                <div className="text-lg sm:text-2xl font-bold text-white truncate">
-                  {stats.recent.toLocaleString('el-GR')}
-                </div>
-                <div className="text-xs sm:text-sm text-gray-400 truncate">Νέοι (30 ημέρες)</div>
-              </div>
-            </div>
-          </div>
+          ))}
         </div>
       </div>
 
