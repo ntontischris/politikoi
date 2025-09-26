@@ -1,33 +1,53 @@
+import { useEffect, Suspense, lazy } from 'react'
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import { Layout } from './components/Layout'
 import { ProtectedRoute } from './components/ProtectedRoute'
-import { Dashboard } from './pages/Dashboard'
-import { Citizens } from './pages/Citizens'
-// Military pages are now integrated into Citizens page
-// import { Military } from './pages/Military'
-// import { MilitaryEsso } from './pages/MilitaryEsso'
-import { Requests } from './pages/Requests'
-import { Reports } from './pages/Reports'
-import { Settings } from './pages/Settings'
-import { LoginPage } from './pages/LoginPage'
-import { AdminSettings } from './pages/AdminSettings'
-import { LandingPage } from './pages/LandingPage'
+import { useAuthStore } from './stores/authStore'
+
+// Lazy load components to reduce initial bundle size
+const Dashboard = lazy(() => import('./pages/Dashboard').then(module => ({ default: module.Dashboard })))
+const Citizens = lazy(() => import('./pages/Citizens').then(module => ({ default: module.Citizens })))
+const Requests = lazy(() => import('./pages/Requests').then(module => ({ default: module.Requests })))
+const Reports = lazy(() => import('./pages/Reports').then(module => ({ default: module.Reports })))
+const Settings = lazy(() => import('./pages/Settings').then(module => ({ default: module.Settings })))
+const LoginPage = lazy(() => import('./pages/LoginPage').then(module => ({ default: module.LoginPage })))
+const AdminSettings = lazy(() => import('./pages/AdminSettings').then(module => ({ default: module.AdminSettings })))
+const LandingPage = lazy(() => import('./pages/LandingPage').then(module => ({ default: module.LandingPage })))
+
+// Loading component
+const LoadingSpinner = () => (
+  <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+    <div className="flex flex-col items-center space-y-4">
+      <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+      <p className="text-gray-400">Φόρτωση...</p>
+    </div>
+  </div>
+)
 
 function App() {
+  const { initialize, initialized } = useAuthStore()
+
+  useEffect(() => {
+    if (!initialized) {
+      initialize()
+    }
+  }, [initialize, initialized])
+
   return (
     <Router>
       <div className="dark">
-        <Routes>
-          {/* Public routes */}
-          <Route path="/" element={<LandingPage />} />
-          <Route path="/login" element={<LoginPage />} />
+        <Suspense fallback={<LoadingSpinner />}>
+          <Routes>
+            {/* Public routes */}
+            <Route path="/" element={<LandingPage />} />
+            <Route path="/login" element={<LoginPage />} />
 
-          {/* Temporary testing route without auth */}
-          <Route path="/test-requests" element={
-            <div className="min-h-screen bg-slate-900 text-white p-8">
-              <Requests />
-            </div>
-          } />
+            {/* Temporary testing route without auth */}
+            <Route path="/test-requests" element={
+              <div className="min-h-screen bg-slate-900 text-white p-8">
+                <Requests />
+              </div>
+            } />
           
           {/* Protected routes with layout */}
           <Route element={
@@ -55,10 +75,10 @@ function App() {
               <AdminSettings />
             </ProtectedRoute>
           } />
-          
-          <Route path="*" element={<Navigate to="/dashboard" replace />} />
-        </Routes>
 
+          <Route path="*" element={<Navigate to="/dashboard" replace />} />
+          </Routes>
+        </Suspense>
       </div>
     </Router>
   )

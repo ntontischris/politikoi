@@ -25,16 +25,23 @@ export function LoginPage() {
       return
     }
 
-    const { error } = await signIn(email, password)
-    
-    if (error) {
-      if (error.message.includes('Invalid login credentials')) {
-        setError('Λάθος email ή κωδικός πρόσβασης')
-      } else if (error.message.includes('Email not confirmed')) {
-        setError('Το email δεν έχει επιβεβαιωθεί')
+    try {
+      const { error } = await signIn(email, password)
+
+      if (error) {
+        if (error.message.includes('Invalid login credentials')) {
+          setError('Λάθος email ή κωδικός πρόσβασης')
+        } else if (error.message.includes('Email not confirmed')) {
+          setError('Το email δεν έχει επιβεβαιωθεί')
+        } else {
+          setError('Σφάλμα σύνδεσης. Παρακαλώ προσπαθήστε ξανά.')
+        }
       } else {
-        setError('Σφάλμα σύνδεσης. Παρακαλώ προσπαθήστε ξανά.')
+        // Successful login - user will be redirected by the Navigate component above
+        // The loading state will be managed by the auth store
       }
+    } catch (err) {
+      setError('Σφάλμα σύνδεσης. Παρακαλώ προσπαθήστε ξανά.')
     }
   }
 
@@ -151,13 +158,12 @@ export function LoginPage() {
           </div>
         </form>
 
-        {/* Demo Credentials */}
+        {/* Login Help */}
         <div className="mt-8 p-4 bg-slate-800 rounded-lg border border-slate-600">
-          <h3 className="text-sm font-medium text-gray-300 mb-2">Στοιχεία Σύνδεσης:</h3>
+          <h3 className="text-sm font-medium text-gray-300 mb-2">Οδηγίες Σύνδεσης:</h3>
           <div className="text-xs text-gray-400 space-y-1">
-            <p><strong>Email:</strong> ntontischris@gmail.com</p>
-            <p><strong>Κωδικός:</strong> mixail</p>
-            <p className="text-gray-500 mt-2">Admin δικαιώματα - Πλήρη πρόσβαση στο σύστημα</p>
+            <p>Χρησιμοποιήστε τα στοιχεία λογαριασμού που σας έχουν παρασχεθεί</p>
+            <p className="text-gray-500 mt-2">Για βοήθεια επικοινωνήστε με τον διαχειριστή του συστήματος</p>
           </div>
         </div>
       </div>
