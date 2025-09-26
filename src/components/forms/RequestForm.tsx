@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { X, Save, FileText, Building } from 'lucide-react'
 import { useRealtimeCitizenStore } from '../../stores/realtimeCitizenStore'
 import { useRequestActions } from '../../stores/realtimeRequestStore'
+import { sanitizeFormData } from '../../utils/sanitization'
 
 interface RequestFormData {
   type: 'citizen' | 'military'
@@ -84,6 +85,8 @@ export function RequestForm({ isOpen = true, onClose, onSubmit, onSuccess, initi
   })
   const [errors, setErrors] = useState<Partial<RequestFormData & {militaryId: string}>>({})
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState<string | null>(null)
+  const [submitSuccess, setSubmitSuccess] = useState(false)
   
   // Store hooks
   const { items: citizens, initialize: loadCitizens } = useRealtimeCitizenStore()
@@ -121,6 +124,9 @@ export function RequestForm({ isOpen = true, onClose, onSubmit, onSuccess, initi
     if (!isOpen) {
       setFormData(initialFormData)
       setErrors({})
+      setSubmitError(null)
+      setSubmitSuccess(false)
+      setIsSubmitting(false)
     }
   }, [isOpen])
 
@@ -131,7 +137,7 @@ export function RequestForm({ isOpen = true, onClose, onSubmit, onSuccess, initi
   }
 
   const validateForm = (): boolean => {
-    const newErrors: Partial<RequestFormData> = {}
+    const newErrors: Partial<RequestFormData & {militaryId: string}> = {}
 
     // Required fields validation
     if (!formData.category.trim()) {
@@ -147,12 +153,33 @@ export function RequestForm({ isOpen = true, onClose, onSubmit, onSuccess, initi
       newErrors.department = 'Το τμήμα είναι υποχρεωτικό'
     }
 
-    // Person selection validation
-    if (formData.type === 'citizen' && !formData.citizenId.trim()) {
-      newErrors.citizenId = 'Η επιλογή πολίτη είναι υποχρεωτική'
+    // Person selection validation - ensure someone is selected
+    if (formData.type === 'citizen') {
+      if (!formData.citizenId.trim()) {
+        newErrors.citizenId = 'Η επιλογή πολίτη είναι υποχρεωτική'
+      } else {
+        // Verify the citizen exists and is not military
+        const selectedCitizen = citizens.find(c => c.id === formData.citizenId)
+        if (!selectedCitizen) {
+          newErrors.citizenId = 'Ο επιλεγμένος πολίτης δεν υπάρχει'
+        } else if (selectedCitizen.isMilitary) {
+          newErrors.citizenId = 'Ο επιλεγμένος πολίτης είναι στρατιωτικό προσωπικό'
+        }
+      }
     }
-    if (formData.type === 'military' && !formData.militaryId.trim()) {
-      newErrors.militaryId = 'Η επιλογή στρατιωτικού είναι υποχρεωτική'
+
+    if (formData.type === 'military') {
+      if (!formData.militaryId.trim()) {
+        newErrors.militaryId = 'Η επιλογή στρατιωτικού είναι υποχρεωτική'
+      } else {
+        // Verify the military person exists and is military
+        const selectedMilitary = citizens.find(c => c.id === formData.militaryId)
+        if (!selectedMilitary) {
+          newErrors.militaryId = 'Ο επιλεγμένος στρατιωτικός δεν υπάρχει'
+        } else if (!selectedMilitary.isMilitary) {
+          newErrors.militaryId = 'Ο επιλεγμένος δεν είναι στρατιωτικό προσωπικό'
+        }
+      }
     }
 
     // Estimated days validation (optional but if provided should be a number)
@@ -160,6 +187,7 @@ export function RequestForm({ isOpen = true, onClose, onSubmit, onSuccess, initi
       newErrors.estimatedDays = 'Οι εκτιμώμενες ημέρες πρέπει να είναι θετικός αριθμός'
     }
 
+    console.log('Form validation errors:', newErrors)
     setErrors(newErrors)
     return Object.keys(newErrors).length === 0
   }
@@ -194,32 +222,60 @@ export function RequestForm({ isOpen = true, onClose, onSubmit, onSuccess, initi
     }
 
     setIsSubmitting(true)
+    setSubmitError(null)
+    setSubmitSuccess(false)
+
+    // Sanitize form data before submission
+    const sanitizedData = sanitizeFormData(formData)
+
     try {
       if (onSubmit) {
-        await onSubmit(formData)
+        await onSubmit(sanitizedData)
       } else {
         // Use the request store to create the request
-        const requestData = {
-          citizenId: formData.type === 'citizen' ? formData.citizenId : undefined,
-          militaryPersonnelId: formData.type === 'military' ? formData.militaryId : undefined,
-          requestType: `${formData.category} - ${formData.title}`, // Combine category and title
-          description: formData.description,
-          status: 'ΕΚΚΡΕΜΕΙ' as const, // Use Greek status
-          priority: formData.priority,
-          sendDate: new Date().toISOString(),
-          notes: formData.notes?.trim() || undefined
+        // Both citizen and military types use citizenId since military personnel are stored in citizens table
+        const selectedPersonId = sanitizedData.type === 'citizen' ? sanitizedData.citizenId : sanitizedData.militaryId
+
+        if (!selectedPersonId) {
+          throw new Error('Δεν έχει επιλεγεί πολίτης ή στρατιωτικό προσωπικό')
         }
+
+        const requestData = {
+          citizenId: selectedPersonId,
+          militaryPersonnelId: undefined, // Not used anymore since military are in citizens table
+          requestType: `${sanitizedData.category} - ${sanitizedData.title}`, // Combine category and title
+          description: sanitizedData.description,
+          status: 'ΕΚΚΡΕΜΕΙ' as const, // Use Greek status
+          priority: sanitizedData.priority,
+          sendDate: new Date().toISOString(),
+          notes: sanitizedData.notes?.trim() || undefined
+        }
+
+        console.log('Submitting request data:', requestData)
         await addRequest(requestData)
+        console.log('Request submitted successfully')
+
+        setSubmitSuccess(true)
+
         // Call success callback if provided
         if (onSuccess) {
           onSuccess()
         }
       }
-      onClose()
-      setFormData(initialFormData)
-      setErrors({})
+
+      // Close the form and reset state
+      setTimeout(() => {
+        onClose()
+        setFormData(initialFormData)
+        setErrors({})
+        setSubmitError(null)
+        setSubmitSuccess(false)
+      }, 1000) // Give user a moment to see success message
+
     } catch (error) {
       console.error('Error submitting form:', error)
+      const errorMessage = error instanceof Error ? error.message : 'Σφάλμα κατά την υποβολή του αιτήματος'
+      setSubmitError(errorMessage)
     } finally {
       setIsSubmitting(false)
     }
@@ -227,6 +283,8 @@ export function RequestForm({ isOpen = true, onClose, onSubmit, onSuccess, initi
 
   const handleClose = () => {
     setIsSubmitting(false)  // Reset loading state when closing
+    setSubmitError(null)
+    setSubmitSuccess(false)
     onClose()
     setFormData(initialFormData)
     setErrors({})
@@ -260,6 +318,28 @@ export function RequestForm({ isOpen = true, onClose, onSubmit, onSuccess, initi
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="p-6">
+          {/* Error and Success Messages */}
+          {submitError && (
+            <div className="mb-6 bg-red-500/20 border border-red-500/30 text-red-400 px-4 py-3 rounded-2xl flex items-center backdrop-blur-sm animate-slide-in">
+              <X className="h-5 w-5 mr-3 flex-shrink-0" />
+              <span className="flex-1 text-fluid-sm">{submitError}</span>
+              <button
+                type="button"
+                onClick={() => setSubmitError(null)}
+                className="ml-3 text-red-400 hover:text-red-300 touch-target-lg flex items-center justify-center rounded-lg hover:bg-red-500/20 transition-colors"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          )}
+
+          {submitSuccess && (
+            <div className="mb-6 bg-green-500/20 border border-green-500/30 text-green-400 px-4 py-3 rounded-2xl flex items-center backdrop-blur-sm animate-slide-in">
+              <Save className="h-5 w-5 mr-3 flex-shrink-0" />
+              <span className="flex-1 text-fluid-sm">Το αίτημα υποβλήθηκε με επιτυχία! Κλείσιμο σε λίγα δευτερόλεπτα...</span>
+            </div>
+          )}
+
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             
             {/* Type and Category */}
