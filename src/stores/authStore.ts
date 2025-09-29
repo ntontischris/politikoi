@@ -1,5 +1,6 @@
 import { create } from 'zustand'
-import { supabase } from '../lib/supabase'
+import { supabase, signInWithPassword, signOut as supabaseSignOut, getUser, getSession } from '../lib/supabase'
+import { DEV_AUTH } from '../lib/devAuth'
 import type { User, AuthError } from '@supabase/supabase-js'
 
 // Check if we're in development mode and Supabase is available
@@ -146,11 +147,26 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ loading: true })
 
     try {
-      // Attempting login
+      console.log('🔐 Starting authentication process...')
 
       // Check if Supabase is available
       if (!isSupabaseAvailable()) {
-        console.error('Supabase configuration is missing. Please check your environment variables.')
+        console.warn('⚠️ Supabase not available, checking dev auth...')
+
+        if (DEV_AUTH.isEnabled()) {
+          console.log('🔧 DEV MODE: Using development authentication')
+          const result = await DEV_AUTH.signIn()
+
+          if (result.data?.user) {
+            set({
+              user: result.data.user,
+              profile: DEV_AUTH.getProfile(),
+              loading: false
+            })
+            return { error: null }
+          }
+        }
+
         set({ loading: false })
         return {
           error: {
@@ -159,26 +175,63 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         }
       }
 
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password
-      })
+      // Use improved signInWithPassword helper
+      const { data, error } = await signInWithPassword(email, password)
 
-      // Login response processed
+      if (error) {
+        console.error('❌ Authentication failed:', {
+          message: error.message,
+          status: (error as any).status,
+          code: (error as any).code
+        })
 
-      if (!error && data.user) {
-        console.log('Login successful, setting user state')
-        // Set user immediately upon successful login
+        // Fallback to dev auth in development on auth failure
+        if (import.meta.env.DEV && DEV_AUTH.isEnabled()) {
+          console.log('🔧 Falling back to dev auth due to auth failure')
+          const devResult = await DEV_AUTH.signIn()
+
+          if (devResult.data?.user) {
+            set({
+              user: devResult.data.user,
+              profile: DEV_AUTH.getProfile(),
+              loading: false
+            })
+            return { error: null }
+          }
+        }
+
+        set({ loading: false })
+        return { error }
+      }
+
+      if (data.user) {
+        console.log('✅ Login successful, setting user state')
         set({ user: data.user, loading: false })
         // Profile will be loaded by the auth state change listener
       } else {
-        console.log('Login failed or no user data')
+        console.warn('⚠️ Login succeeded but no user data returned')
         set({ loading: false })
       }
 
       return { error }
     } catch (error) {
-      console.error('Login error:', error)
+      console.error('💥 Unexpected login error:', error)
+
+      // Ultimate fallback for development
+      if (import.meta.env.DEV && DEV_AUTH.isEnabled()) {
+        console.log('🔧 Using dev auth as last resort')
+        const devResult = await DEV_AUTH.signIn()
+
+        if (devResult.data?.user) {
+          set({
+            user: devResult.data.user,
+            profile: DEV_AUTH.getProfile(),
+            loading: false
+          })
+          return { error: null }
+        }
+      }
+
       set({ loading: false })
       return { error: error as AuthError }
     }
@@ -211,31 +264,46 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   signOut: async () => {
     const { user } = get()
-    
-    if (user) {
+
+    console.log('🚪 Starting logout process...')
+
+    // Handle dev auth logout
+    if (DEV_AUTH.isDevMode()) {
+      console.log('🔧 DEV MODE: Logging out from dev auth')
+      await DEV_AUTH.signOut()
+      set({ user: null, profile: null })
+
+      // Force redirect to login page
+      window.location.href = '/login'
+      return
+    }
+
+    if (user && isSupabaseAvailable()) {
       // Mark current session as inactive
       try {
         await supabase
           .from('user_sessions')
-          .update({ 
+          .update({
             is_active: false,
             logout_time: new Date().toISOString()
           })
           .eq('user_id', user.id)
           .eq('is_active', true)
       } catch (error) {
-        console.error('Error updating session:', error)
+        console.error('⚠️ Error updating session:', error)
+        // Don't block logout for this
       }
     }
 
     try {
-      await supabase.auth.signOut()
+      await supabaseSignOut()
+      console.log('✅ Logout successful')
     } catch (error) {
-      console.error('Error signing out:', error)
+      console.error('❌ Error signing out:', error)
     }
-    
+
     set({ user: null, profile: null })
-    
+
     // Force redirect to login page
     window.location.href = '/login'
   },

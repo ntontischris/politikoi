@@ -11,7 +11,11 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     autoRefreshToken: true,
     persistSession: true,
-    detectSessionInUrl: true
+    detectSessionInUrl: true,
+    storage: typeof window !== 'undefined' ? window.localStorage : undefined,
+    storageKey: 'politikoi-auth',
+    flowType: 'pkce',
+    debug: import.meta.env.DEV
   },
   global: {
     headers: {
@@ -29,6 +33,59 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     reconnectAfterMs: (tries: number) => Math.min(tries * 1000, 10000)
   }
 })
+
+// Helper functions για καλύτερο auth handling
+export const getUser = async () => {
+  try {
+    const { data: { user }, error } = await supabase.auth.getUser()
+    if (error) throw error
+    return user
+  } catch (error) {
+    console.error('Error getting user:', error)
+    return null
+  }
+}
+
+export const getSession = async () => {
+  try {
+    const { data: { session }, error } = await supabase.auth.getSession()
+    if (error) throw error
+    return session
+  } catch (error) {
+    console.error('Error getting session:', error)
+    return null
+  }
+}
+
+export const signInWithPassword = async (email: string, password: string) => {
+  try {
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: email.trim().toLowerCase(),
+      password
+    })
+    return { data, error }
+  } catch (error) {
+    console.error('Sign in error:', error)
+    return { data: null, error }
+  }
+}
+
+export const signOut = async () => {
+  try {
+    const { error } = await supabase.auth.signOut()
+    if (error) throw error
+
+    // Clear local storage
+    if (typeof window !== 'undefined') {
+      window.localStorage.removeItem('politikoi-auth')
+    }
+
+    return { error: null }
+  } catch (error) {
+    console.error('Sign out error:', error)
+    return { error }
+  }
+}
 
 // Types based on existing database schema
 export interface Citizen {
