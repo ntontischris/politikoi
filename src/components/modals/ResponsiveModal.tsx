@@ -18,6 +18,7 @@ export interface ResponsiveModalProps {
   className?: string
   bottomSheet?: boolean // Use bottom sheet pattern on mobile
   swipeToClose?: boolean // Enable swipe to close on mobile
+  zIndex?: number
 }
 
 export function ResponsiveModal({
@@ -35,7 +36,8 @@ export function ResponsiveModal({
   preventScrolling = true,
   className = '',
   bottomSheet = false,
-  swipeToClose = true
+  swipeToClose = true,
+  zIndex = 50
 }: ResponsiveModalProps) {
   const { isMobile, isTablet } = useResponsive()
   const { isTouchDevice } = useTouchDevice()
@@ -154,15 +156,16 @@ export function ResponsiveModal({
 
   const getContainerClasses = () => {
     if (isMobile && bottomSheet) {
-      return 'fixed inset-0 z-50 flex items-end'
+      return 'fixed inset-0 flex items-end'
     }
-    return 'fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6'
+    return 'fixed inset-0 flex items-center justify-center p-4 sm:p-6'
   }
 
   return (
     <div
       ref={modalRef}
       className={getContainerClasses()}
+      style={{ zIndex }}
     >
       {/* Backdrop */}
       <div

@@ -4,6 +4,7 @@ import { useRealtimeCitizenStore } from '../stores/realtimeCitizenStore'
 import { CitizenForm, type CitizenFormData } from '../components/forms/CitizenForm'
 import { CitizenViewModal } from '../components/modals/CitizenViewModal'
 import { RequestForm } from '../components/forms/RequestForm'
+import { RequestViewModalContainer } from '../components/modals/RequestViewModalContainer'
 import { useRequestActions } from '../stores/realtimeRequestStore'
 import { useResponsive, useTouchDevice } from '../hooks/useResponsive'
 import type { Citizen } from '../stores/realtimeCitizenStore'
@@ -338,7 +339,7 @@ export function Citizens() {
             <button
               onClick={() => setShowAddModal(true)}
               disabled={isLoading}
-              className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 disabled:from-gray-600 disabled:to-gray-700 text-white px-4 sm:px-6 py-3 rounded-xl flex items-center justify-center transition-all duration-200 touch-target-lg font-medium w-full sm:w-auto shadow-lg hover:shadow-xl active:scale-[0.98] group"
+              className="relative overflow-hidden bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 disabled:from-gray-600 disabled:to-gray-700 text-white px-4 sm:px-6 py-3 rounded-xl flex items-center justify-center transition-all duration-200 touch-target-lg font-medium w-full sm:w-auto shadow-lg hover:shadow-xl active:scale-[0.98] group"
             >
               <div className="absolute inset-0 bg-gradient-to-r from-white/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity rounded-xl" />
               <UserPlus className="h-5 w-5 mr-2 flex-shrink-0 z-10" />
@@ -884,6 +885,7 @@ export function Citizens() {
         }}
         onEdit={handleEditFromView}
         onRequestFormOpen={handleOpenRequestForm}
+        zIndex={40}
       />
 
       {/* Global RequestForm */}
@@ -893,8 +895,12 @@ export function Citizens() {
           onClose={handleCloseRequestForm}
           onSuccess={handleRequestSuccess}
           mode="add"
+          zIndex={9999}
         />
       )}
+
+      {/* Global RequestViewModalContainer */}
+      <RequestViewModalContainer />
     </div>
   )
 }

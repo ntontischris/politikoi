@@ -9,9 +9,10 @@ interface CitizenViewModalProps {
   onClose: () => void
   onEdit: (citizen: Citizen) => void
   onRequestFormOpen?: (citizenId: string) => void
+  zIndex?: number
 }
 
-export function CitizenViewModal({ citizen, isOpen, onClose, onEdit, onRequestFormOpen }: CitizenViewModalProps) {
+export function CitizenViewModal({ citizen, isOpen, onClose, onEdit, onRequestFormOpen, zIndex = 40 }: CitizenViewModalProps) {
   if (!isOpen || !citizen) return null
 
   const handleEdit = () => {
@@ -20,10 +21,10 @@ export function CitizenViewModal({ citizen, isOpen, onClose, onEdit, onRequestFo
   }
 
   return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center p-2 sm:p-4">
-      <div className="absolute inset-0 bg-black opacity-50" onClick={onClose}></div>
-      
-      <div className="responsive-modal-lg bg-slate-800 border border-slate-700 rounded-xl max-h-screen-90 overflow-y-auto relative z-10">
+    <div className="fixed inset-0 flex items-center justify-center p-2 sm:p-4" style={{ zIndex }}>
+      <div className="absolute inset-0 bg-black opacity-50" style={{ zIndex: zIndex - 10 }} onClick={onClose}></div>
+
+      <div className="responsive-modal-lg bg-slate-800 border border-slate-700 rounded-xl max-h-screen-90 overflow-y-auto relative" style={{ zIndex }}>
         {/* Header */}
         <div className="flex items-center justify-between responsive-padding border-b border-slate-700">
           <div className="flex items-center">

@@ -7,7 +7,7 @@ export interface Request {
   military_personnel_id?: string | null
   request_type: string
   description: string
-  status?: 'pending' | 'in-progress' | 'completed' | 'rejected' | 'ΕΚΚΡΕΜΕΙ' | 'ΟΛΟΚΛΗΡΩΘΗΚΕ' | 'ΑΠΟΡΡΙΦΘΗΚΕ'
+  status?: 'pending' | 'in-progress' | 'completed' | 'rejected' | 'ΕΚΚΡΕΜΕΙ' | 'ΣΕ_ΕΞΕΛΙΞΗ' | 'ΟΛΟΚΛΗΡΩΘΗΚΕ' | 'ΑΠΟΡΡΙΦΘΗΚΕ'
   priority?: 'low' | 'medium' | 'high' | 'urgent'
   send_date?: string | null
   completion_date?: string | null

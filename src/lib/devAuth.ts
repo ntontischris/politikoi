@@ -48,8 +48,6 @@ export const DEV_AUTH = {
 
     try {
       console.log('🔧 DEV MODE: Using mock authentication')
-      localStorage.setItem('dev-auth-user', JSON.stringify(this.mockUser))
-      localStorage.setItem('dev-auth-profile', JSON.stringify(this.mockProfile))
 
       return {
         data: {
@@ -70,31 +68,19 @@ export const DEV_AUTH = {
   async signOut() {
     if (!this.enabled) return
 
-    localStorage.removeItem('dev-auth-user')
-    localStorage.removeItem('dev-auth-profile')
     console.log('🔧 DEV MODE: Cleared mock authentication')
   },
 
   getUser(): MockUser | null {
     if (!this.enabled) return null
 
-    try {
-      const stored = localStorage.getItem('dev-auth-user')
-      return stored ? JSON.parse(stored) : null
-    } catch {
-      return null
-    }
+    return this.mockUser
   },
 
   getProfile() {
     if (!this.enabled) return null
 
-    try {
-      const stored = localStorage.getItem('dev-auth-profile')
-      return stored ? JSON.parse(stored) : null
-    } catch {
-      return null
-    }
+    return this.mockProfile
   },
 
   isEnabled() {

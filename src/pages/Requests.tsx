@@ -48,18 +48,16 @@ export function Requests() {
 
   const [searchTerm, setSearchTerm] = useState('')
   const [typeFilter, setTypeFilter] = useState<'' | 'citizen' | 'military'>('')
-  const [statusFilter, setStatusFilter] = useState<'' | 'submitted' | 'in_progress' | 'pending_review' | 'approved' | 'rejected' | 'completed'>('')
-  const [priorityFilter, setPriorityFilter] = useState<'' | 'low' | 'medium' | 'high'>('')
+  const [statusFilter, setStatusFilter] = useState<'' | 'ΕΚΚΡΕΜΕΙ' | 'ΣΕ_ΕΞΕΛΙΞΗ' | 'ΟΛΟΚΛΗΡΩΘΗΚΕ' | 'ΑΠΟΡΡΙΦΘΗΚΕ'>('')
+  const [priorityFilter, setPriorityFilter] = useState<'' | 'low' | 'medium' | 'high' | 'urgent'>('')
   const [departmentFilter, setDepartmentFilter] = useState('')
   const [showAddModal, setShowAddModal] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
   const [showViewModal, setShowViewModal] = useState(false)
   const [stats, setStats] = useState({ 
     total: 0, 
-    submitted: 0,
-    inProgress: 0, 
-    approved: 0,
     pending: 0, 
+    inProgress: 0, 
     completed: 0, 
     rejected: 0, 
   })
@@ -79,15 +77,10 @@ export function Requests() {
         // Transform store stats to match component expectations
         const transformedStats = {
           total: rawStats.total,
-          submitted: rawStats.pending || 0, // Map pending to submitted for display
-          inProgress: rawStats.in_progress || 0, // Convert snake_case to camelCase
-          approved: rawStats.completed || 0, // Map completed to approved for display
+          inProgress: rawStats.inProgress || 0,
           pending: rawStats.pending || 0,
           completed: rawStats.completed || 0,
-          rejected: rawStats.rejected || 0,
-          avgResponseTime: rawStats.avgResponseTime || 0,
-          by_department: rawStats.by_department || {},
-          by_type: rawStats.by_type || {}
+          rejected: rawStats.rejected || 0
         }
 
         setStats(transformedStats)
@@ -155,7 +148,7 @@ export function Requests() {
         requestType: formData.title,
         description: formData.description,
         priority: formData.priority,
-        status: 'pending' as const,
+        status: 'ΕΚΚΡΕΜΕΙ' as const,
         // Map form fields to store fields correctly
         citizenId: formData.type === 'citizen' ? formData.citizenId : undefined,
         militaryPersonnelId: formData.type === 'military' ? formData.militaryId : undefined
@@ -165,9 +158,7 @@ export function Requests() {
       const rawStats = await getStats()
       const transformedStats = {
         total: rawStats.total,
-        submitted: rawStats.pending || 0,
-        inProgress: rawStats.in_progress || 0,
-        approved: rawStats.completed || 0,
+        inProgress: rawStats.inProgress || 0,
         pending: rawStats.pending || 0,
         completed: rawStats.completed || 0,
         rejected: rawStats.rejected || 0,
@@ -195,9 +186,7 @@ export function Requests() {
       const rawStats = await getStats()
       const transformedStats = {
         total: rawStats.total,
-        submitted: rawStats.pending || 0,
-        inProgress: rawStats.in_progress || 0,
-        approved: rawStats.completed || 0,
+        inProgress: rawStats.inProgress || 0,
         pending: rawStats.pending || 0,
         completed: rawStats.completed || 0,
         rejected: rawStats.rejected || 0,
@@ -222,9 +211,7 @@ export function Requests() {
       const rawStats = await getStats()
       const transformedStats = {
         total: rawStats.total,
-        submitted: rawStats.pending || 0,
-        inProgress: rawStats.in_progress || 0,
-        approved: rawStats.completed || 0,
+        inProgress: rawStats.inProgress || 0,
         pending: rawStats.pending || 0,
         completed: rawStats.completed || 0,
         rejected: rawStats.rejected || 0,
@@ -259,14 +246,15 @@ export function Requests() {
     notes: request.notes || ''
   })
 
-  // Convert our Request to RequestViewModal format
+        // Convert our Request to RequestViewModal format
   const convertRequestToModalFormat = (request: Request) => {
     const citizen = request.citizenId ? citizens.find(c => c.id === request.citizenId) : null
     return {
       id: request.id,
+      requestType: request.requestType,
       type: request.citizenId ? 'citizen' as const : 'military' as const,
       category: '', // Not stored in database
-      title: request.requestType,
+      title: request.requestType, // Assuming requestType is available
       description: request.description,
       submitterName: citizen ? `${citizen.name} ${citizen.surname}`.trim() : 'Μη διαθέσιμο',
       submitterEmail: citizen?.email || 'Μη διαθέσιμο',
@@ -274,8 +262,8 @@ export function Requests() {
       submitterAfm: citizen?.afm || '',
       relatedCitizenId: request.citizenId,
       relatedMilitaryId: request.militaryPersonnelId,
-      priority: request.priority as 'low' | 'medium' | 'high',
-      status: request.status === 'in-progress' ? 'in_progress' as const : request.status as 'submitted' | 'pending' | 'completed' | 'rejected',
+      priority: request.priority as 'low' | 'medium' | 'high' | 'urgent', // Added 'urgent' for completeness
+      status: request.status as 'ΕΚΚΡΕΜΕΙ' | 'ΣΕ_ΕΞΕΛΙΞΗ' | 'ΟΛΟΚΛΗΡΩΘΗΚΕ' | 'ΑΠΟΡΡΙΦΘΗΚΕ', // Aligned to Greek statuses
       assignedTo: '', // Not stored in database
       department: '', // Not stored in database
       estimatedDays: 0, // Not stored in database
@@ -397,36 +385,30 @@ export function Requests() {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'submitted': return 'bg-blue-500/20 text-blue-400 border-blue-500/30'
-      case 'in_progress': return 'bg-orange-500/20 text-orange-400 border-orange-500/30'
-      case 'pending_review': return 'bg-purple-500/20 text-purple-400 border-purple-500/30'
-      case 'approved': return 'bg-green-500/20 text-green-400 border-green-500/30'
-      case 'rejected': return 'bg-red-500/20 text-red-400 border-red-500/30'
-      case 'completed': return 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
+      case 'ΕΚΚΡΕΜΕΙ': return 'bg-blue-500/20 text-blue-400 border-blue-500/30'
+      case 'ΣΕ_ΕΞΕΛΙΞΗ': return 'bg-orange-500/20 text-orange-400 border-orange-500/30'
+      case 'ΟΛΟΚΛΗΡΩΘΗΚΕ': return 'bg-green-500/20 text-green-400 border-green-500/30'
+      case 'ΑΠΟΡΡΙΦΘΗΚΕ': return 'bg-red-500/20 text-red-400 border-red-500/30'
       default: return 'bg-gray-500/20 text-gray-400 border-gray-500/30'
     }
   }
 
   const getStatusText = (status: string) => {
     switch (status) {
-      case 'submitted': return 'Υποβλήθηκε'
-      case 'in_progress': return 'Σε Εξέλιξη'
-      case 'pending_review': return 'Εκκρεμεί Έλεγχος'
-      case 'approved': return 'Εγκρίθηκε'
-      case 'rejected': return 'Απορρίφθηκε'
-      case 'completed': return 'Ολοκληρώθηκε'
+      case 'ΕΚΚΡΕΜΕΙ': return 'Εκκρεμεί'
+      case 'ΣΕ_ΕΞΕΛΙΞΗ': return 'Σε Εξέλιξη'
+      case 'ΟΛΟΚΛΗΡΩΘΗΚΕ': return 'Ολοκληρώθηκε'
+      case 'ΑΠΟΡΡΙΦΘΗΚΕ': return 'Απορρίφθηκε'
       default: return 'Άγνωστο'
     }
   }
 
   const getStatusIcon = (status: string) => {
     switch (status) {
-      case 'submitted': return FileText
-      case 'in_progress': return Clock
-      case 'pending_review': return AlertCircle
-      case 'approved': return Star
-      case 'rejected': return XCircle
-      case 'completed': return CheckCircle
+      case 'ΕΚΚΡΕΜΕΙ': return FileText
+      case 'ΣΕ_ΕΞΕΛΙΞΗ': return Clock
+      case 'ΟΛΟΚΛΗΡΩΘΗΚΕ': return CheckCircle
+      case 'ΑΠΟΡΡΙΦΘΗΚΕ': return XCircle
       default: return FileText
     }
   }
@@ -518,7 +500,7 @@ export function Requests() {
               </div>
               <div className="text-right min-w-0 flex-1 ml-2">
                 <div className="text-base sm:text-2xl font-bold text-white truncate">
-                  {stats.submitted.toLocaleString('el-GR')}
+                  {stats.pending.toLocaleString('el-GR')}
                 </div>
                 <div className="text-xs sm:text-sm text-gray-400 truncate">Υποβλήθηκαν</div>
               </div>
@@ -537,19 +519,7 @@ export function Requests() {
               </div>
             </div>
           </div>
-          <div className="bg-slate-800 border border-green-500/30 rounded-xl p-4 sm:p-6">
-            <div className="flex items-center justify-between">
-              <div className="p-2 sm:p-3 rounded-lg bg-green-500/20 flex-shrink-0">
-                <Star className="h-4 w-4 sm:h-6 sm:w-6 text-green-400" />
-              </div>
-              <div className="text-right min-w-0 flex-1 ml-2">
-                <div className="text-base sm:text-2xl font-bold text-white truncate">
-                  {stats.approved.toLocaleString('el-GR')}
-                </div>
-                <div className="text-xs sm:text-sm text-gray-400 truncate">Εγκρίθηκαν</div>
-              </div>
-            </div>
-          </div>
+
           <div className="bg-slate-800 border border-emerald-500/30 rounded-xl p-4 sm:p-6">
             <div className="flex items-center justify-between">
               <div className="p-2 sm:p-3 rounded-lg bg-emerald-500/20 flex-shrink-0">
@@ -594,16 +564,14 @@ export function Requests() {
           </select>
           <select
             value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value as '' | 'submitted' | 'in_progress' | 'pending_review' | 'approved' | 'rejected' | 'completed')}
+            onChange={(e) => setStatusFilter(e.target.value as '' | 'ΕΚΚΡΕΜΕΙ' | 'ΣΕ_ΕΞΕΛΙΞΗ' | 'ΟΛΟΚΛΗΡΩΘΗΚΕ' | 'ΑΠΟΡΡΙΦΘΗΚΕ')}
             className="bg-slate-700 border border-slate-600 text-white rounded-lg px-3 py-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           >
-            <option value="">Καταστάσεις</option>
-            <option value="submitted">Υποβλήθηκε</option>
-            <option value="in_progress">Σε Εξέλιξη</option>
-            <option value="pending_review">Εκκρεμεί Έλεγχος</option>
-            <option value="approved">Εγκρίθηκε</option>
-            <option value="rejected">Απορρίφθηκε</option>
-            <option value="completed">Ολοκληρώθηκε</option>
+            <option value="">Όλες οι καταστάσεις</option>
+            <option value="ΕΚΚΡΕΜΕΙ">Εκκρεμεί</option>
+            <option value="ΣΕ_ΕΞΕΛΙΞΗ">Σε Εξέλιξη</option>
+            <option value="ΟΛΟΚΛΗΡΩΘΗΚΕ">Ολοκληρώθηκε</option>
+            <option value="ΑΠΟΡΡΙΦΘΗΚΕ">Απορρίφθηκε</option>
           </select>
           <select
             value={priorityFilter}
@@ -692,7 +660,6 @@ export function Requests() {
         onEdit={() => {
           if (selectedRequest) {
             setShowEditModal(true)
-            setShowViewModal(false)
           }
         }}
       />

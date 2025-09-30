@@ -1,4 +1,5 @@
 import { X, FileText, User, Building, Clock, AlertTriangle, Calendar, Edit, Star, CheckCircle, XCircle } from 'lucide-react'
+import { createPortal } from 'react-dom'
 import { type Request } from '../../stores/realtimeRequestStore'
 
 interface RequestViewModalProps {
@@ -6,14 +7,14 @@ interface RequestViewModalProps {
   isOpen: boolean
   onClose: () => void
   onEdit: (request: Request) => void
+  zIndex?: number
 }
 
-export function RequestViewModal({ request, isOpen, onClose, onEdit }: RequestViewModalProps) {
+export function RequestViewModal({ request, isOpen, onClose, onEdit, zIndex = 9999 }: RequestViewModalProps) {
   if (!isOpen || !request) return null
 
   const handleEdit = () => {
     onEdit(request)
-    onClose()
   }
 
   const getStatusColor = (status: Request['status']) => {
@@ -79,11 +80,11 @@ export function RequestViewModal({ request, isOpen, onClose, onEdit }: RequestVi
       : 'bg-blue-500/20 text-blue-400 border-blue-500/30'
   }
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4">
-      <div className="absolute inset-0 bg-black opacity-50" onClick={onClose}></div>
-      
-      <div className="responsive-modal-lg bg-slate-800 border border-slate-700 rounded-xl max-h-screen-90 overflow-y-auto relative z-10">
+  const modalContent = (
+    <div className="fixed inset-0 flex items-center justify-center p-2 sm:p-4" style={{ zIndex }}>
+      <div className="absolute inset-0 bg-black opacity-50" style={{ zIndex: zIndex - 10 }} onClick={onClose}></div>
+
+      <div className="responsive-modal-lg bg-slate-800 border border-slate-700 rounded-xl max-h-screen-90 overflow-y-auto relative" style={{ zIndex }}>
         {/* Header */}
         <div className="flex items-center justify-between responsive-padding border-b border-slate-700">
           <div className="flex items-center">
@@ -359,4 +360,7 @@ export function RequestViewModal({ request, isOpen, onClose, onEdit }: RequestVi
       </div>
     </div>
   )
+
+  // Use portal to render outside of any parent stacking contexts
+  return createPortal(modalContent, document.body)
 }

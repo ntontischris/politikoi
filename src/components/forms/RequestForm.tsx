@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { X, Save, FileText, Building } from 'lucide-react'
 import { useRealtimeCitizenStore } from '../../stores/realtimeCitizenStore'
-import { useRequestActions } from '../../stores/realtimeRequestStore'
+import { useRequestActions, type Request } from '../../stores/realtimeRequestStore'
 import { sanitizeFormData } from '../../utils/sanitization'
 
 interface RequestFormData {
@@ -22,10 +23,11 @@ interface RequestFormProps {
   onClose: () => void
   onSubmit?: (data: RequestFormData) => void
   onSuccess?: () => void
-  request?: unknown
+  request?: Request
   defaultCitizenId?: string
   initialData?: Partial<RequestFormData>
   mode: 'add' | 'edit'
+  zIndex?: number
 }
 
 const initialFormData: RequestFormData = {
@@ -78,10 +80,36 @@ const departments = [
   'Άλλο'
 ]
 
-export function RequestForm({ isOpen = true, onClose, onSubmit, onSuccess, initialData, mode = 'add', defaultCitizenId }: RequestFormProps) {
-  const [formData, setFormData] = useState<RequestFormData>({
-    ...initialFormData,
-    ...initialData
+// Helper function to convert Request to RequestFormData
+const convertRequestToFormData = (request: Request): RequestFormData => {
+  // Parse requestType to extract category and title
+  const requestTypeParts = request.requestType.split(' - ')
+  const category = requestTypeParts[0] || ''
+  const title = requestTypeParts[1] || ''
+
+  return {
+    type: request.militaryPersonnelId ? 'military' : 'citizen',
+    category,
+    title,
+    description: request.description || '',
+    citizenId: request.citizenId || '',
+    militaryId: request.militaryPersonnelId || '',
+    priority: request.priority || 'medium',
+    department: '', // Not stored in Request object
+    estimatedDays: '', // Not stored in Request object
+    notes: request.notes || ''
+  }
+}
+
+export function RequestForm({ isOpen = true, onClose, onSubmit, onSuccess, request, initialData, mode = 'add', defaultCitizenId, zIndex = 9999 }: RequestFormProps) {
+  const [formData, setFormData] = useState<RequestFormData>(() => {
+    if (request && mode === 'edit') {
+      return convertRequestToFormData(request)
+    }
+    return {
+      ...initialFormData,
+      ...initialData
+    }
   })
   const [errors, setErrors] = useState<Partial<RequestFormData & {militaryId: string}>>({})
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -90,7 +118,7 @@ export function RequestForm({ isOpen = true, onClose, onSubmit, onSuccess, initi
   
   // Store hooks
   const { items: citizens, initialize: loadCitizens } = useRealtimeCitizenStore()
-  const { addItem: addRequest } = useRequestActions()
+  const { addItem: addRequest, updateItem: updateRequest } = useRequestActions()
 
   // Load data when component mounts
   useEffect(() => {
@@ -99,25 +127,43 @@ export function RequestForm({ isOpen = true, onClose, onSubmit, onSuccess, initi
     }
   }, [isOpen, loadCitizens])
   
-  // Update form data when initialData changes
+  // Update form data when request changes (for edit mode)
   useEffect(() => {
-    if (initialData) {
+    if (request && mode === 'edit') {
+      setFormData(convertRequestToFormData(request))
+    } else if (initialData) {
       setFormData({
         ...initialFormData,
         ...initialData
       })
     }
-  }, [initialData, mode])
+  }, [request, initialData, mode])
 
-  // Set default citizen if provided
+  // Set default citizen if provided and auto-detect type
   useEffect(() => {
     if (defaultCitizenId && mode === 'add' && !initialData) {
-      setFormData(prev => ({
-        ...prev,
-        citizenId: defaultCitizenId
-      }))
+      // Find the citizen to check if they are military
+      const selectedCitizen = citizens.find(c => c.id === defaultCitizenId)
+
+      if (selectedCitizen) {
+        // Determine type based on isMilitary flag
+        const type = selectedCitizen.isMilitary ? 'military' : 'citizen'
+
+        setFormData(prev => ({
+          ...prev,
+          type,
+          citizenId: type === 'citizen' ? defaultCitizenId : '',
+          militaryId: type === 'military' ? defaultCitizenId : ''
+        }))
+      } else {
+        // Fallback if citizen not found
+        setFormData(prev => ({
+          ...prev,
+          citizenId: defaultCitizenId
+        }))
+      }
     }
-  }, [defaultCitizenId, mode, initialData])
+  }, [defaultCitizenId, mode, initialData, citizens])
   
   // Reset form when modal closes
   useEffect(() => {
@@ -231,9 +277,35 @@ export function RequestForm({ isOpen = true, onClose, onSubmit, onSuccess, initi
     try {
       if (onSubmit) {
         await onSubmit(sanitizedData)
+      } else if (mode === 'edit' && request) {
+        // Update existing request
+        const selectedPersonId = sanitizedData.type === 'citizen' ? sanitizedData.citizenId : sanitizedData.militaryId
+
+        if (!selectedPersonId) {
+          throw new Error('Δεν έχει επιλεγεί πολίτης ή στρατιωτικό προσωπικό')
+        }
+
+        const updateData = {
+          citizenId: selectedPersonId,
+          militaryPersonnelId: undefined, // Not used anymore since military are in citizens table
+          requestType: `${sanitizedData.category} - ${sanitizedData.title}`, // Combine category and title
+          description: sanitizedData.description,
+          priority: sanitizedData.priority,
+          notes: sanitizedData.notes?.trim() || undefined
+        }
+
+        console.log('Updating request data:', updateData)
+        await updateRequest(request.id, updateData)
+        console.log('Request updated successfully')
+
+        setSubmitSuccess(true)
+
+        // Call success callback if provided
+        if (onSuccess) {
+          onSuccess()
+        }
       } else {
-        // Use the request store to create the request
-        // Both citizen and military types use citizenId since military personnel are stored in citizens table
+        // Create new request
         const selectedPersonId = sanitizedData.type === 'citizen' ? sanitizedData.citizenId : sanitizedData.militaryId
 
         if (!selectedPersonId) {
@@ -295,11 +367,12 @@ export function RequestForm({ isOpen = true, onClose, onSubmit, onSuccess, initi
   // Use unified categories for all requests
   const categories = allCategories
 
-  return (
-    <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black opacity-50" onClick={handleClose}></div>
-      
-      <div className="bg-slate-800 border border-slate-700 rounded-xl w-full max-w-5xl max-h-[90vh] overflow-y-auto relative z-10">
+  // Render using portal to avoid stacking context issues
+  const modalContent = (
+    <div className="fixed inset-0 flex items-center justify-center p-4" style={{ zIndex }}>
+      <div className="absolute inset-0 bg-black opacity-50" style={{ zIndex: zIndex - 10 }} onClick={handleClose}></div>
+
+      <div className="bg-slate-800 border border-slate-700 rounded-xl w-full max-w-5xl max-h-[90vh] overflow-y-auto relative" style={{ zIndex }}>
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-slate-700">
           <div className="flex items-center">
@@ -357,11 +430,21 @@ export function RequestForm({ isOpen = true, onClose, onSubmit, onSuccess, initi
               <select
                 value={formData.type}
                 onChange={(e) => handleInputChange('type', e.target.value)}
-                className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                disabled={!!defaultCitizenId}
+                className={`w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                  !!defaultCitizenId ? 'opacity-75 cursor-not-allowed' : ''
+                }`}
               >
                 <option value="citizen">Πολιτικό Αίτημα</option>
                 <option value="military">Στρατιωτικό Αίτημα</option>
               </select>
+              {defaultCitizenId && (
+                <div className="mt-2 p-3 bg-blue-600/20 border border-blue-500/30 rounded-lg">
+                  <p className="text-sm text-blue-300">
+                    ℹ️ Ο τύπος αιτήματος καθορίζεται αυτόματα από τον επιλεγμένο πολίτη.
+                  </p>
+                </div>
+              )}
             </div>
 
             <div>
@@ -442,14 +525,28 @@ export function RequestForm({ isOpen = true, onClose, onSubmit, onSuccess, initi
                 } ${!!defaultCitizenId ? 'opacity-75 cursor-not-allowed' : ''}`}
               >
                 <option value="">{formData.type === 'citizen' ? 'Επιλέξτε πολίτη' : 'Επιλέξτε στρατιωτικό'}</option>
-                {getAvailablePersons()
-                  .filter(person => formData.type === 'citizen' ? !person.isMilitary : person.isMilitary)
-                  .map(person => (
-                    <option key={person.id} value={person.id}>
-                      {`${person.name} ${person.surname}`}
-                      {person.isMilitary && person.militaryRank && ` - ${person.militaryRank}`}
-                    </option>
-                  ))}
+                {defaultCitizenId ? (
+                  // When defaultCitizenId is set, show only that person
+                  (() => {
+                    const selectedPerson = getAvailablePersons().find(person => person.id === defaultCitizenId)
+                    return selectedPerson ? (
+                      <option key={selectedPerson.id} value={selectedPerson.id}>
+                        {`${selectedPerson.name} ${selectedPerson.surname}`}
+                        {selectedPerson.isMilitary && selectedPerson.militaryRank && ` - ${selectedPerson.militaryRank}`}
+                      </option>
+                    ) : null
+                  })()
+                ) : (
+                  // When no defaultCitizenId, show all matching persons
+                  getAvailablePersons()
+                    .filter(person => formData.type === 'citizen' ? !person.isMilitary : person.isMilitary)
+                    .map(person => (
+                      <option key={person.id} value={person.id}>
+                        {`${person.name} ${person.surname}`}
+                        {person.isMilitary && person.militaryRank && ` - ${person.militaryRank}`}
+                      </option>
+                    ))
+                )}
               </select>
               {(errors.citizenId || errors.militaryId) && (
                 <p className="mt-1 text-sm text-red-400">
@@ -579,4 +676,7 @@ export function RequestForm({ isOpen = true, onClose, onSubmit, onSuccess, initi
       </div>
     </div>
   )
+
+  // Use portal to render outside of any parent stacking contexts
+  return createPortal(modalContent, document.body)
 }

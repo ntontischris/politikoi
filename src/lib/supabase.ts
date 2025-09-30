@@ -12,7 +12,6 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     autoRefreshToken: true,
     persistSession: true,
     detectSessionInUrl: true,
-    storage: typeof window !== 'undefined' ? window.localStorage : undefined,
     storageKey: 'politikoi-auth',
     flowType: 'pkce',
     debug: import.meta.env.DEV
@@ -74,11 +73,6 @@ export const signOut = async () => {
   try {
     const { error } = await supabase.auth.signOut()
     if (error) throw error
-
-    // Clear local storage
-    if (typeof window !== 'undefined') {
-      window.localStorage.removeItem('politikoi-auth')
-    }
 
     return { error: null }
   } catch (error) {

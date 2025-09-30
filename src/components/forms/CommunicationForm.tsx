@@ -92,7 +92,7 @@ export const CommunicationForm: React.FC<CommunicationFormProps> = ({
   const selectedCitizen = getCitizen(formData.citizen_id)
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-[60]">
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-[45]">
       <div className="bg-slate-800/90 backdrop-blur-lg border border-slate-700 rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-slate-700">

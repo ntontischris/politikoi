@@ -23,7 +23,7 @@ const mapStatusFromDB = (dbStatus: string): Request['status'] => {
   }
 }
 
-const mapStatusToDB = (frontendStatus: Request['status']): string => {
+const mapStatusToDB = (frontendStatus: Request['status']): DBRequest['status'] => {
   // Store as Greek values in database for consistency
   return frontendStatus
 }
@@ -59,7 +59,8 @@ const mapFrontendToDB = (frontendRequest: Partial<Request>): Partial<RequestInpu
 // Helper to transform database request with details to frontend format
 const mapDBToFrontendWithDetails = (dbRequestWithDetails: RequestWithDetails): RequestWithDetails => ({
   ...mapDBToFrontend(dbRequestWithDetails),
-  citizen: dbRequestWithDetails.citizens ? {
+  request_type: dbRequestWithDetails.request_type,
+  citizens: dbRequestWithDetails.citizens ? {
     name: dbRequestWithDetails.citizens.name,
     surname: dbRequestWithDetails.citizens.surname,
     municipality: dbRequestWithDetails.citizens.municipality,
@@ -84,15 +85,7 @@ export interface Request {
   updated_at: string
 }
 
-export interface RequestWithDetails extends Request {
-  citizen?: {
-    name: string
-    surname: string
-    municipality?: string
-    isMilitary?: boolean
-    militaryRank?: string
-  }
-}
+
 
 interface RealtimeRequestStoreState {
   items: Request[]

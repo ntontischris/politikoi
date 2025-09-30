@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { FileText, AlertTriangle, Plus, Edit, Trash2, Clock, CheckCircle, XCircle, AlertCircle } from 'lucide-react'
 import { useRequestStore, useRequestActions, type Request } from '../../stores/realtimeRequestStore'
 import { RequestForm } from '../forms/RequestForm'
-import { RequestViewModal } from '../modals/RequestViewModal'
+import { showRequestViewModal } from '../modals/RequestViewModalContainer'
 
 interface RequestTimelineProps {
   citizenId: string
@@ -12,31 +12,22 @@ interface RequestTimelineProps {
 }
 
 const statusIcons = {
-  pending: Clock,
-  'in-progress': AlertCircle,
-  completed: CheckCircle,
-  rejected: XCircle,
   'ΕΚΚΡΕΜΕΙ': Clock,
+  'ΣΕ_ΕΞΕΛΙΞΗ': AlertCircle,
   'ΟΛΟΚΛΗΡΩΘΗΚΕ': CheckCircle,
   'ΑΠΟΡΡΙΦΘΗΚΕ': XCircle
 }
 
 const statusLabels = {
-  pending: 'Εκκρεμές',
-  'in-progress': 'Σε Εξέλιξη',
-  completed: 'Ολοκληρωμένο',
-  rejected: 'Απορρίφθηκε',
   'ΕΚΚΡΕΜΕΙ': 'Εκκρεμές',
+  'ΣΕ_ΕΞΕΛΙΞΗ': 'Σε Εξέλιξη',
   'ΟΛΟΚΛΗΡΩΘΗΚΕ': 'Ολοκληρωμένο',
   'ΑΠΟΡΡΙΦΘΗΚΕ': 'Απορρίφθηκε'
 }
 
 const statusColors = {
-  pending: 'text-blue-400',
-  'in-progress': 'text-yellow-400',
-  completed: 'text-emerald-400',
-  rejected: 'text-red-400',
   'ΕΚΚΡΕΜΕΙ': 'text-blue-400',
+  'ΣΕ_ΕΞΕΛΙΞΗ': 'text-yellow-400',
   'ΟΛΟΚΛΗΡΩΘΗΚΕ': 'text-emerald-400',
   'ΑΠΟΡΡΙΦΘΗΚΕ': 'text-red-400'
 }
@@ -72,9 +63,7 @@ export const RequestTimeline: React.FC<RequestTimelineProps> = ({
   } = useRequestActions()
 
   const [showForm, setShowForm] = useState(false)
-  const [showViewModal, setShowViewModal] = useState(false)
   const [editingRequest, setEditingRequest] = useState<Request | null>(null)
-  const [viewingRequest, setViewingRequest] = useState<Request | null>(null)
 
   // Load requests when component mounts
   useEffect(() => {
@@ -92,8 +81,12 @@ export const RequestTimeline: React.FC<RequestTimelineProps> = ({
   }
 
   const handleView = (request: Request) => {
-    setViewingRequest(request)
-    setShowViewModal(true)
+    showRequestViewModal(request, {
+      onEdit: handleEdit,
+      onClose: () => {
+        // Optional callback when modal closes
+      }
+    })
   }
 
   const handleDelete = async (request: Request) => {
@@ -111,10 +104,6 @@ export const RequestTimeline: React.FC<RequestTimelineProps> = ({
     setEditingRequest(null)
   }
 
-  const handleCloseViewModal = () => {
-    setShowViewModal(false)
-    setViewingRequest(null)
-  }
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString)
@@ -139,10 +128,10 @@ export const RequestTimeline: React.FC<RequestTimelineProps> = ({
   }
 
   const getProgressWidth = (request: Request) => {
-    const statusOrder = ['pending', 'in-progress', 'completed']
+    const statusOrder = ['ΕΚΚΡΕΜΕΙ', 'ΣΕ_ΕΞΕΛΙΞΗ', 'ΟΛΟΚΛΗΡΩΘΗΚΕ']
     const currentIndex = statusOrder.indexOf(request.status)
-    if (request.status === 'rejected' || request.status === 'ΑΠΟΡΡΙΦΘΗΚΕ') return '100%'
-    if (request.status === 'completed' || request.status === 'ΟΛΟΚΛΗΡΩΘΗΚΕ') return '100%'
+    if (request.status === 'ΑΠΟΡΡΙΦΘΗΚΕ') return '100%'
+    if (request.status === 'ΟΛΟΚΛΗΡΩΘΗΚΕ') return '100%'
     if (currentIndex === -1) return '33%' // Default for unknown status
     return `${((currentIndex + 1) / statusOrder.length) * 100}%`
   }
@@ -150,9 +139,9 @@ export const RequestTimeline: React.FC<RequestTimelineProps> = ({
   // Statistics
   const stats = {
     total: citizenRequests.length,
-    completed: citizenRequests.filter(r => r.status === 'completed' || r.status === 'ΟΛΟΚΛΗΡΩΘΗΚΕ').length,
-    inProgress: citizenRequests.filter(r => r.status === 'in-progress').length,
-    pending: citizenRequests.filter(r => r.status === 'pending' || r.status === 'ΕΚΚΡΕΜΕΙ').length
+    completed: citizenRequests.filter(r => r.status === 'ΟΛΟΚΛΗΡΩΘΗΚΕ').length,
+    inProgress: citizenRequests.filter(r => r.status === 'ΣΕ_ΕΞΕΛΙΞΗ').length,
+    pending: citizenRequests.filter(r => r.status === 'ΕΚΚΡΕΜΕΙ').length
   }
 
   return (
@@ -265,12 +254,12 @@ export const RequestTimeline: React.FC<RequestTimelineProps> = ({
                         </div>
 
                         {/* Progress Bar */}
-                        {request.status !== 'rejected' && (
+                        {request.status !== 'ΑΠΟΡΡΙΦΘΗΚΕ' && (
                           <div className="mb-3">
                             <div className="w-full bg-slate-600 rounded-full h-2">
                               <div 
                                 className={`h-2 rounded-full transition-all duration-500 ${
-                                  request.status === 'completed' 
+                                  request.status === 'ΟΛΟΚΛΗΡΩΘΗΚΕ' 
                                     ? 'bg-emerald-500' 
                                     : 'bg-blue-500'
                                 }`}
@@ -339,25 +328,17 @@ export const RequestTimeline: React.FC<RequestTimelineProps> = ({
         </div>
       )}
 
-      {/* Request Form Modal - Only show if no external handler */}
-      {showForm && !onRequestFormOpen && (
+      {/* Request Form Modal - Show for edit mode or if no external handler */}
+      {showForm && (editingRequest || !onRequestFormOpen) && (
         <RequestForm
           request={editingRequest}
           defaultCitizenId={citizenId}
           onClose={handleCloseForm}
           mode={editingRequest ? 'edit' : 'add'}
+          zIndex={9999}
         />
       )}
 
-      {/* Request View Modal */}
-      {showViewModal && viewingRequest && (
-        <RequestViewModal
-          request={viewingRequest}
-          isOpen={showViewModal}
-          onClose={handleCloseViewModal}
-          onEdit={() => {}}
-        />
-      )}
     </div>
   )
 }

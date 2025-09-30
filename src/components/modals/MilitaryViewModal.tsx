@@ -24,9 +24,10 @@ interface MilitaryViewModalProps {
   isOpen: boolean
   onClose: () => void
   onEdit: (militaryPersonnel: MilitaryPersonnel) => void
+  zIndex?: number
 }
 
-export function MilitaryViewModal({ militaryPersonnel, isOpen, onClose, onEdit }: MilitaryViewModalProps) {
+export function MilitaryViewModal({ militaryPersonnel, isOpen, onClose, onEdit, zIndex = 40 }: MilitaryViewModalProps) {
   if (!isOpen || !militaryPersonnel) return null
 
   const handleEdit = () => {
@@ -67,10 +68,10 @@ export function MilitaryViewModal({ militaryPersonnel, isOpen, onClose, onEdit }
   const StatusIcon = getStatusIcon(militaryPersonnel.status)
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4">
-      <div className="absolute inset-0 bg-black opacity-50" onClick={onClose}></div>
-      
-      <div className="responsive-modal-lg bg-slate-800 border border-slate-700 rounded-xl max-h-screen-90 overflow-y-auto relative z-10">
+    <div className="fixed inset-0 flex items-center justify-center p-2 sm:p-4" style={{ zIndex }}>
+      <div className="absolute inset-0 bg-black opacity-50" style={{ zIndex: zIndex - 10 }} onClick={onClose}></div>
+
+      <div className="responsive-modal-lg bg-slate-800 border border-slate-700 rounded-xl max-h-screen-90 overflow-y-auto relative" style={{ zIndex }}>
         {/* Header */}
         <div className="flex items-center justify-between responsive-padding border-b border-slate-700">
           <div className="flex items-center">
