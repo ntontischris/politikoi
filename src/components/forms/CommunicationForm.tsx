@@ -61,20 +61,19 @@ export const CommunicationForm: React.FC<CommunicationFormProps> = ({
     }
 
     try {
+      const communicationData = {
+        citizenId: formData.citizen_id,
+        contactDate: formData.communication_date,
+        communicationType: formData.type,
+        notes: formData.notes || ''
+      }
+
+      console.log('Saving communication data:', communicationData)
+
       if (communication) {
-        await updateItem(communication.id, {
-          citizenId: formData.citizen_id,
-          contactDate: formData.communication_date,
-          communicationType: formData.type,
-          notes: formData.notes
-        })
+        await updateItem(communication.id, communicationData)
       } else {
-        await addItem({
-          citizenId: formData.citizen_id,
-          contactDate: formData.communication_date,
-          communicationType: formData.type,
-          notes: formData.notes
-        })
+        await addItem(communicationData)
       }
       onClose()
     } catch (error) {
