@@ -43,7 +43,8 @@ export function Requests() {
 
   const {
     items: citizens,
-    initialize: loadCitizens
+    initialize: loadCitizens,
+    error: citizensError
   } = useRealtimeCitizenStore()
 
   const [searchTerm, setSearchTerm] = useState('')
@@ -70,7 +71,16 @@ export function Requests() {
     const loadData = async () => {
       try {
         await loadRequests()
-        await loadCitizens() // Load citizens data as well
+
+        // Load citizens data with explicit error handling
+        try {
+          await loadCitizens()
+        } catch (citizenErr) {
+          console.error('Error loading citizens:', citizenErr)
+          // Set error for user visibility
+          setError(`Αποτυχία φόρτωσης πολιτών: ${citizenErr instanceof Error ? citizenErr.message : 'Άγνωστο σφάλμα'}`)
+        }
+
         const rawStats = await getStats()
         const departmentsData = await getDepartments()
 
@@ -90,7 +100,7 @@ export function Requests() {
       }
     }
     loadData()
-  }, [loadRequests, loadCitizens])
+  }, [loadRequests, loadCitizens, setError])
 
   // Clear error after 5 seconds
   useEffect(() => {
@@ -241,7 +251,7 @@ export function Requests() {
     citizenId: request.citizenId || '',
     militaryId: request.militaryPersonnelId || '',
     priority: request.priority,
-    department: '', // Not stored in database  
+    department: request.department || '', // Read from database
     estimatedDays: '', // Not stored in database
     notes: request.notes || ''
   })
@@ -443,16 +453,40 @@ export function Requests() {
 
   return (
     <div className="responsive-padding py-4 sm:py-6 lg:py-8">
-      {/* Error Alert */}
+      {/* Error Alert - Requests */}
       {error && (
         <div className="mb-4 sm:mb-6 bg-red-500/20 border border-red-500/30 text-red-400 px-4 py-3 rounded-lg flex items-center">
           <AlertCircle className="h-5 w-5 mr-2 flex-shrink-0" />
           <span className="flex-1 text-sm sm:text-base">{error}</span>
-          <button 
+          <button
             onClick={() => setError(null)}
             className="ml-2 text-red-400 hover:text-red-300 touch-target flex items-center justify-center"
           >
             <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+
+      {/* Error Alert - Citizens */}
+      {citizensError && (
+        <div className="mb-4 sm:mb-6 bg-orange-500/20 border border-orange-500/30 text-orange-400 px-4 py-3 rounded-lg flex items-center">
+          <AlertCircle className="h-5 w-5 mr-2 flex-shrink-0" />
+          <div className="flex-1">
+            <p className="text-sm sm:text-base font-medium">Προειδοποίηση Φόρτωσης Πολιτών</p>
+            <p className="text-xs sm:text-sm mt-1">{citizensError}</p>
+            <p className="text-xs sm:text-sm mt-1">Η προσθήκη νέων αιτημάτων μπορεί να μην λειτουργεί σωστά.</p>
+          </div>
+          <button
+            onClick={async () => {
+              try {
+                await loadCitizens()
+              } catch (err) {
+                console.error('Retry failed:', err)
+              }
+            }}
+            className="ml-2 px-3 py-1 bg-orange-600 hover:bg-orange-700 text-white rounded text-xs sm:text-sm touch-target"
+          >
+            Επανάληψη
           </button>
         </div>
       )}
@@ -646,7 +680,7 @@ export function Requests() {
           setSelectedRequest(null)
         }}
         onSubmit={handleEditRequest}
-        initialData={selectedRequest ? convertRequestToFormData(selectedRequest) : undefined}
+        request={selectedRequest || undefined}
         mode="edit"
       />
 

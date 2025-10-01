@@ -37,6 +37,7 @@ const mapDBToFrontend = (dbRequest: DBRequest): Request => ({
   description: dbRequest.description,
   status: mapStatusFromDB(dbRequest.status || 'pending'),
   priority: (dbRequest.priority as 'low' | 'medium' | 'high' | 'urgent') || 'medium',
+  department: dbRequest.department || undefined,
   sendDate: dbRequest.send_date || undefined,
   completionDate: dbRequest.completion_date || undefined,
   notes: dbRequest.notes || undefined,
@@ -51,6 +52,7 @@ const mapFrontendToDB = (frontendRequest: Partial<Request>): Partial<RequestInpu
   description: frontendRequest.description,
   status: frontendRequest.status ? mapStatusToDB(frontendRequest.status) : undefined,
   priority: frontendRequest.priority,
+  department: frontendRequest.department || null,
   send_date: frontendRequest.sendDate || null,
   completion_date: frontendRequest.completionDate || null,
   notes: frontendRequest.notes || null
@@ -78,6 +80,7 @@ export interface Request {
   description: string
   status: 'ΕΚΚΡΕΜΕΙ' | 'ΣΕ_ΕΞΕΛΙΞΗ' | 'ΟΛΟΚΛΗΡΩΘΗΚΕ' | 'ΑΠΟΡΡΙΦΘΗΚΕ'
   priority: 'low' | 'medium' | 'high' | 'urgent'
+  department?: string          // Maps from department
   sendDate?: string           // Maps from send_date
   completionDate?: string     // Maps from completion_date
   notes?: string

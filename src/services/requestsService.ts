@@ -9,6 +9,7 @@ export interface Request {
   description: string
   status?: 'pending' | 'in-progress' | 'completed' | 'rejected' | 'ΕΚΚΡΕΜΕΙ' | 'ΣΕ_ΕΞΕΛΙΞΗ' | 'ΟΛΟΚΛΗΡΩΘΗΚΕ' | 'ΑΠΟΡΡΙΦΘΗΚΕ'
   priority?: 'low' | 'medium' | 'high' | 'urgent'
+  department?: string | null
   send_date?: string | null
   completion_date?: string | null
   notes?: string | null

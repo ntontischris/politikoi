@@ -1,36 +1,17 @@
 import { create } from 'zustand'
-import { supabase, signInWithPassword, signOut as supabaseSignOut, getUser, getSession } from '../lib/supabase'
-import { DEV_AUTH } from '../lib/devAuth'
+import { supabase, signInWithPassword, signOut as supabaseSignOut } from '../lib/supabase'
 import type { User, AuthError } from '@supabase/supabase-js'
-
-// Check if we're in development mode and Supabase is available
-const isSupabaseAvailable = () => {
-  try {
-    return !!(import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY)
-  } catch {
-    return false
-  }
-}
-
-// Mock user for development
-const mockUser: User = {
-  id: 'mock-user-id',
-  email: 'demo@example.com',
-  app_metadata: {},
-  user_metadata: { full_name: 'Demo User' },
-  aud: 'authenticated',
-  created_at: new Date().toISOString(),
-  role: 'authenticated'
-}
 
 export interface UserProfile {
   id: string
   email: string
-  full_name: string | null
+  first_name: string | null
+  last_name: string | null
+  full_name?: string | null  // Computed field
   role: 'admin' | 'user'
   role_id: string
   is_active: boolean
-  last_login_at: string | null
+  last_login?: string | null
   created_at: string
   updated_at: string
   permissions: Record<string, any>
@@ -41,7 +22,7 @@ interface AuthState {
   profile: UserProfile | null
   loading: boolean
   initialized: boolean
-  
+
   signIn: (email: string, password: string) => Promise<{ error: AuthError | null }>
   signUp: (email: string, password: string, fullName: string) => Promise<{ error: AuthError | null }>
   signOut: () => Promise<void>
@@ -62,14 +43,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ loading: true })
 
     try {
-      // Check if Supabase is available
-      if (!isSupabaseAvailable()) {
-        console.log('Supabase not available, using mock initialization')
-        // Mock initialization - no persistent session in mock mode
-        set({ loading: false, initialized: true })
-        return
-      }
-
       const { data: { user } } = await supabase.auth.getUser()
 
       if (user) {
@@ -77,42 +50,40 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         await get().loadProfile()
       }
     } catch (error) {
-      console.error('Error initializing auth:', error)
+      // Silent fail in production - user will be redirected to login
     } finally {
       set({ loading: false, initialized: true })
     }
 
-    // Listen for auth state changes (only if Supabase is available)
-    if (isSupabaseAvailable()) {
-      supabase.auth.onAuthStateChange(async (event, session) => {
-        if (event === 'SIGNED_IN' && session?.user) {
-          set({ user: session.user, loading: false })
-          await get().loadProfile()
+    // Listen for auth state changes
+    supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'SIGNED_IN' && session?.user) {
+        set({ user: session.user, loading: false })
+        await get().loadProfile()
 
-          // Record login session (with error handling)
-          try {
-            await supabase.from('user_sessions').insert({
-              user_id: session.user.id,
-              session_token: session.access_token,
-              ip_address: null, // Will be set by trigger
-              user_agent: navigator.userAgent,
-              is_active: true
-            })
+        // Record login session (with error handling)
+        try {
+          await supabase.from('user_sessions').insert({
+            user_id: session.user.id,
+            session_token: session.access_token,
+            user_agent: navigator.userAgent,
+            is_active: true
+          })
 
-            // Update last login
-            await supabase.from('user_profiles').update({
-              last_login_at: new Date().toISOString()
-            }).eq('id', session.user.id)
-          } catch (error) {
-            console.error('Error updating login records:', error)
-            // Don't block the login process for non-critical operations
-          }
-
-        } else if (event === 'SIGNED_OUT') {
-          set({ user: null, profile: null, loading: false })
+          // Update last login
+          await supabase.from('user_profiles').update({
+            last_login_at: new Date().toISOString(),
+            last_login_ip: null // Will be set by trigger if available
+          }).eq('id', session.user.id)
+        } catch (error) {
+          console.error('Failed to record session:', error)
+          // Silent fail - don't block login for non-critical operations
         }
-      })
-    }
+
+      } else if (event === 'SIGNED_OUT') {
+        set({ user: null, profile: null, loading: false })
+      }
+    })
   },
 
   loadProfile: async () => {
@@ -120,26 +91,34 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     if (!user) return
 
     try {
+      // Query user_profiles table by user id
       const { data: profile, error } = await supabase
         .from('user_profiles')
-        .select(`
-          *,
-          role:user_roles(role_name, permissions)
-        `)
+        .select('*')
         .eq('id', user.id)
         .single()
 
       if (error) throw error
 
       const userProfile: UserProfile = {
-        ...profile,
-        role: profile.role?.role_name || 'user',
-        permissions: profile.role?.permissions || {}
+        id: profile.id,
+        email: profile.email || user.email,
+        first_name: null,
+        last_name: null,
+        full_name: profile.full_name,
+        role: profile.role || 'user',
+        role_id: profile.role || 'user',
+        is_active: profile.is_active !== false,
+        last_login: profile.last_login_at,
+        created_at: profile.created_at,
+        updated_at: profile.updated_at,
+        permissions: profile.role === 'admin' ? { all: true } : {}
       }
 
       set({ profile: userProfile })
     } catch (error) {
-      console.error('Error loading user profile:', error)
+      console.error('Failed to load profile:', error)
+      // Silent fail - profile load is non-critical
     }
   },
 
@@ -147,91 +126,22 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ loading: true })
 
     try {
-      console.log('🔐 Starting authentication process...')
-
-      // Check if Supabase is available
-      if (!isSupabaseAvailable()) {
-        console.warn('⚠️ Supabase not available, checking dev auth...')
-
-        if (DEV_AUTH.isEnabled()) {
-          console.log('🔧 DEV MODE: Using development authentication')
-          const result = await DEV_AUTH.signIn()
-
-          if (result.data?.user) {
-            set({
-              user: result.data.user,
-              profile: DEV_AUTH.getProfile(),
-              loading: false
-            })
-            return { error: null }
-          }
-        }
-
-        set({ loading: false })
-        return {
-          error: {
-            message: 'Service unavailable. Please check configuration.'
-          } as AuthError
-        }
-      }
-
-      // Use improved signInWithPassword helper
       const { data, error } = await signInWithPassword(email, password)
 
       if (error) {
-        console.error('❌ Authentication failed:', {
-          message: error.message,
-          status: (error as any).status,
-          code: (error as any).code
-        })
-
-        // Fallback to dev auth in development on auth failure
-        if (import.meta.env.DEV && DEV_AUTH.isEnabled()) {
-          console.log('🔧 Falling back to dev auth due to auth failure')
-          const devResult = await DEV_AUTH.signIn()
-
-          if (devResult.data?.user) {
-            set({
-              user: devResult.data.user,
-              profile: DEV_AUTH.getProfile(),
-              loading: false
-            })
-            return { error: null }
-          }
-        }
-
         set({ loading: false })
         return { error }
       }
 
       if (data.user) {
-        console.log('✅ Login successful, setting user state')
         set({ user: data.user, loading: false })
         // Profile will be loaded by the auth state change listener
       } else {
-        console.warn('⚠️ Login succeeded but no user data returned')
         set({ loading: false })
       }
 
       return { error }
     } catch (error) {
-      console.error('💥 Unexpected login error:', error)
-
-      // Ultimate fallback for development
-      if (import.meta.env.DEV && DEV_AUTH.isEnabled()) {
-        console.log('🔧 Using dev auth as last resort')
-        const devResult = await DEV_AUTH.signIn()
-
-        if (devResult.data?.user) {
-          set({
-            user: devResult.data.user,
-            profile: DEV_AUTH.getProfile(),
-            loading: false
-          })
-          return { error: null }
-        }
-      }
-
       set({ loading: false })
       return { error: error as AuthError }
     }
@@ -239,7 +149,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   signUp: async (email: string, password: string, fullName: string) => {
     set({ loading: true })
-    
+
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
@@ -265,20 +175,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   signOut: async () => {
     const { user } = get()
 
-    console.log('🚪 Starting logout process...')
-
-    // Handle dev auth logout
-    if (DEV_AUTH.isDevMode()) {
-      console.log('🔧 DEV MODE: Logging out from dev auth')
-      await DEV_AUTH.signOut()
-      set({ user: null, profile: null })
-
-      // Force redirect to login page
-      window.location.href = '/login'
-      return
-    }
-
-    if (user && isSupabaseAvailable()) {
+    if (user) {
       // Mark current session as inactive
       try {
         await supabase
@@ -290,16 +187,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           .eq('user_id', user.id)
           .eq('is_active', true)
       } catch (error) {
-        console.error('⚠️ Error updating session:', error)
-        // Don't block logout for this
+        // Silent fail - don't block logout
       }
     }
 
     try {
       await supabaseSignOut()
-      console.log('✅ Logout successful')
     } catch (error) {
-      console.error('❌ Error signing out:', error)
+      // Silent fail
     }
 
     set({ user: null, profile: null })
@@ -322,7 +217,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       await get().loadProfile()
     } catch (error) {
-      console.error('Error updating profile:', error)
       throw error
     }
   },
@@ -335,10 +229,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   hasPermission: (permission: string) => {
     const { profile } = get()
     if (!profile) return false
-    
+
     // Admin has all permissions
     if (profile.role === 'admin') return true
-    
+
     // Check specific permission
     const permissions = profile.permissions || {}
     return permissions[permission] === true || permissions.all === true

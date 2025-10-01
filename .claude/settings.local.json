@@ -32,7 +32,10 @@
       "Bash(git push:*)",
       "WebSearch",
       "Bash(dir:*)",
-      "mcp__playwright__browser_press_key"
+      "mcp__playwright__browser_press_key",
+      "Bash(test:*)",
+      "mcp__playwright__browser_network_requests",
+      "mcp__github_com_supabase-community_supabase-mcp__list_migrations"
     ]
   },
   "enableAllProjectMcpServers": true,

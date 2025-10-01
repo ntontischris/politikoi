@@ -81,30 +81,60 @@ const departments = [
 ]
 
 // Helper function to convert Request to RequestFormData
-const convertRequestToFormData = (request: Request): RequestFormData => {
+const convertRequestToFormData = (request: Request, citizens: any[]): RequestFormData => {
   // Parse requestType to extract category and title
   const requestTypeParts = request.requestType.split(' - ')
   const category = requestTypeParts[0] || ''
   const title = requestTypeParts[1] || ''
 
+  // Determine the person ID - all persons (including military) use citizenId
+  const personId = request.citizenId || request.militaryPersonnelId || ''
+
+  // CRITICAL FIX: Determine type by looking up the citizen in the citizens table
+  // and checking their isMilitary flag
+  let type: 'citizen' | 'military' = 'citizen' // Default
+
+  if (personId) {
+    // Look up the citizen to check if they are military
+    const citizen = citizens.find(c => c.id === personId)
+    if (citizen) {
+      // Use the isMilitary flag to determine the type
+      type = citizen.isMilitary ? 'military' : 'citizen'
+    } else if (request.militaryPersonnelId) {
+      // Fallback: if we can't find the citizen but militaryPersonnelId is set, assume military
+      type = 'military'
+    }
+  }
+
   return {
-    type: request.militaryPersonnelId ? 'military' : 'citizen',
+    type,
     category,
     title,
     description: request.description || '',
-    citizenId: request.citizenId || '',
-    militaryId: request.militaryPersonnelId || '',
+    citizenId: type === 'citizen' ? personId : '',
+    militaryId: type === 'military' ? personId : '',
     priority: request.priority || 'medium',
-    department: '', // Not stored in Request object
+    department: request.department || '', // Now properly stored!
     estimatedDays: '', // Not stored in Request object
     notes: request.notes || ''
   }
 }
 
 export function RequestForm({ isOpen = true, onClose, onSubmit, onSuccess, request, initialData, mode = 'add', defaultCitizenId, zIndex = 9999 }: RequestFormProps) {
+  // Store hooks - must be defined BEFORE useState that depends on them
+  const {
+    items: citizens,
+    initialize: loadCitizens,
+    isLoading: isCitizensLoading,
+    error: citizensError
+  } = useRealtimeCitizenStore()
+  const { addItem: addRequest, updateItem: updateRequest } = useRequestActions()
+
   const [formData, setFormData] = useState<RequestFormData>(() => {
+    // Initial state - for edit mode, convert request to form data
+    // Note: citizens might be empty on first render, will be updated in useEffect
     if (request && mode === 'edit') {
-      return convertRequestToFormData(request)
+      return convertRequestToFormData(request, citizens)
     }
     return {
       ...initialFormData,
@@ -115,33 +145,42 @@ export function RequestForm({ isOpen = true, onClose, onSubmit, onSuccess, reque
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [submitSuccess, setSubmitSuccess] = useState(false)
-  
-  // Store hooks
-  const { items: citizens, initialize: loadCitizens } = useRealtimeCitizenStore()
-  const { addItem: addRequest, updateItem: updateRequest } = useRequestActions()
+  const [citizensLoadAttempted, setCitizensLoadAttempted] = useState(false)
 
   // Load data when component mounts
   useEffect(() => {
-    if (isOpen) {
-      loadCitizens()
+    const loadData = async () => {
+      if (isOpen && !citizensLoadAttempted) {
+        setCitizensLoadAttempted(true)
+        try {
+          await loadCitizens()
+        } catch (error) {
+          console.error('Failed to load citizens:', error)
+          // Error is exposed via citizensError from store
+        }
+      }
     }
-  }, [isOpen, loadCitizens])
-  
-  // Update form data when request changes (for edit mode)
+    loadData()
+  }, [isOpen, loadCitizens, citizensLoadAttempted])
+
+  // Update form data when request changes OR citizens load (for edit mode)
+  // This is CRITICAL - when citizens load, we need to re-convert the request data
   useEffect(() => {
-    if (request && mode === 'edit') {
-      setFormData(convertRequestToFormData(request))
+    if (request && mode === 'edit' && citizens.length > 0) {
+      // Re-convert with loaded citizens to get correct military/citizen type
+      setFormData(convertRequestToFormData(request, citizens))
     } else if (initialData) {
       setFormData({
         ...initialFormData,
         ...initialData
       })
     }
-  }, [request, initialData, mode])
+  }, [request, initialData, mode, citizens])
 
-  // Set default citizen if provided and auto-detect type
+  // Set default citizen if provided and auto-detect type (ONLY in add mode, NOT edit)
   useEffect(() => {
-    if (defaultCitizenId && mode === 'add' && !initialData) {
+    // Only run this in ADD mode and when NOT editing an existing request
+    if (defaultCitizenId && mode === 'add' && !request) {
       // Find the citizen to check if they are military
       const selectedCitizen = citizens.find(c => c.id === defaultCitizenId)
 
@@ -163,7 +202,7 @@ export function RequestForm({ isOpen = true, onClose, onSubmit, onSuccess, reque
         }))
       }
     }
-  }, [defaultCitizenId, mode, initialData, citizens])
+  }, [defaultCitizenId, mode, request, citizens])
   
   // Reset form when modal closes
   useEffect(() => {
@@ -203,11 +242,17 @@ export function RequestForm({ isOpen = true, onClose, onSubmit, onSuccess, reque
     if (formData.type === 'citizen') {
       if (!formData.citizenId.trim()) {
         newErrors.citizenId = 'Η επιλογή πολίτη είναι υποχρεωτική'
+      } else if (isCitizensLoading) {
+        // Still loading - prevent submission
+        newErrors.citizenId = 'Παρακαλώ περιμένετε να φορτώσει η λίστα πολιτών'
+      } else if (citizensError) {
+        // Loading failed
+        newErrors.citizenId = 'Αποτυχία φόρτωσης πολιτών. Παρακαλώ ανανεώστε τη σελίδα.'
       } else {
         // Verify the citizen exists and is not military
         const selectedCitizen = citizens.find(c => c.id === formData.citizenId)
         if (!selectedCitizen) {
-          newErrors.citizenId = 'Ο επιλεγμένος πολίτης δεν υπάρχει'
+          newErrors.citizenId = 'Ο επιλεγμένος πολίτης δεν βρέθηκε στη βάση. Ελέγξτε ότι υπάρχει ακόμα.'
         } else if (selectedCitizen.isMilitary) {
           newErrors.citizenId = 'Ο επιλεγμένος πολίτης είναι στρατιωτικό προσωπικό'
         }
@@ -217,11 +262,17 @@ export function RequestForm({ isOpen = true, onClose, onSubmit, onSuccess, reque
     if (formData.type === 'military') {
       if (!formData.militaryId.trim()) {
         newErrors.militaryId = 'Η επιλογή στρατιωτικού είναι υποχρεωτική'
+      } else if (isCitizensLoading) {
+        // Still loading - prevent submission
+        newErrors.militaryId = 'Παρακαλώ περιμένετε να φορτώσει η λίστα στρατιωτικών'
+      } else if (citizensError) {
+        // Loading failed
+        newErrors.militaryId = 'Αποτυχία φόρτωσης στρατιωτικών. Παρακαλώ ανανεώστε τη σελίδα.'
       } else {
         // Verify the military person exists and is military
         const selectedMilitary = citizens.find(c => c.id === formData.militaryId)
         if (!selectedMilitary) {
-          newErrors.militaryId = 'Ο επιλεγμένος στρατιωτικός δεν υπάρχει'
+          newErrors.militaryId = 'Ο επιλεγμένος στρατιωτικός δεν βρέθηκε στη βάση. Ελέγξτε ότι υπάρχει ακόμα.'
         } else if (!selectedMilitary.isMilitary) {
           newErrors.militaryId = 'Ο επιλεγμένος δεν είναι στρατιωτικό προσωπικό'
         }
@@ -286,11 +337,12 @@ export function RequestForm({ isOpen = true, onClose, onSubmit, onSuccess, reque
         }
 
         const updateData = {
-          citizenId: selectedPersonId,
-          militaryPersonnelId: undefined, // Not used anymore since military are in citizens table
+          citizenId: selectedPersonId, // All persons use citizenId (military or not)
+          militaryPersonnelId: undefined, // Not used anymore - all persons are in citizens table
           requestType: `${sanitizedData.category} - ${sanitizedData.title}`, // Combine category and title
           description: sanitizedData.description,
           priority: sanitizedData.priority,
+          department: sanitizedData.department?.trim() || undefined, // Save department!
           notes: sanitizedData.notes?.trim() || undefined
         }
 
@@ -313,12 +365,13 @@ export function RequestForm({ isOpen = true, onClose, onSubmit, onSuccess, reque
         }
 
         const requestData = {
-          citizenId: selectedPersonId,
-          militaryPersonnelId: undefined, // Not used anymore since military are in citizens table
+          citizenId: selectedPersonId, // All persons use citizenId (military or not)
+          militaryPersonnelId: undefined, // Not used anymore - all persons are in citizens table
           requestType: `${sanitizedData.category} - ${sanitizedData.title}`, // Combine category and title
           description: sanitizedData.description,
           status: 'ΕΚΚΡΕΜΕΙ' as const, // Use Greek status
           priority: sanitizedData.priority,
+          department: sanitizedData.department?.trim() || undefined, // Save department!
           sendDate: new Date().toISOString(),
           notes: sanitizedData.notes?.trim() || undefined
         }
@@ -519,12 +572,16 @@ export function RequestForm({ isOpen = true, onClose, onSubmit, onSuccess, reque
               <select
                 value={formData.type === 'citizen' ? formData.citizenId : formData.militaryId}
                 onChange={(e) => handleInputChange(formData.type === 'citizen' ? 'citizenId' : 'militaryId', e.target.value)}
-                disabled={!!defaultCitizenId}
+                disabled={!!defaultCitizenId || isCitizensLoading}
                 className={`w-full bg-slate-700 border rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
                   errors.citizenId ? 'border-red-500' : 'border-slate-600'
-                } ${!!defaultCitizenId ? 'opacity-75 cursor-not-allowed' : ''}`}
+                } ${(!!defaultCitizenId || isCitizensLoading) ? 'opacity-75 cursor-not-allowed' : ''}`}
               >
-                <option value="">{formData.type === 'citizen' ? 'Επιλέξτε πολίτη' : 'Επιλέξτε στρατιωτικό'}</option>
+                {isCitizensLoading ? (
+                  <option value="">Φόρτωση πολιτών...</option>
+                ) : (
+                  <option value="">{formData.type === 'citizen' ? 'Επιλέξτε πολίτη' : 'Επιλέξτε στρατιωτικό'}</option>
+                )}
                 {defaultCitizenId ? (
                   // When defaultCitizenId is set, show only that person
                   (() => {
@@ -560,7 +617,25 @@ export function RequestForm({ isOpen = true, onClose, onSubmit, onSuccess, reque
                   </p>
                 </div>
               )}
-              {!defaultCitizenId && getAvailablePersons().filter(person => formData.type === 'citizen' ? !person.isMilitary : person.isMilitary).length === 0 && (
+              {/* Loading indicator */}
+              {isCitizensLoading && (
+                <div className="mt-2 p-3 bg-blue-600/20 border border-blue-500/30 rounded-lg flex items-center">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-400 mr-2"></div>
+                  <p className="text-sm text-blue-300">
+                    Φόρτωση λίστας πολιτών...
+                  </p>
+                </div>
+              )}
+              {/* Error indicator */}
+              {citizensError && !isCitizensLoading && (
+                <div className="mt-2 p-3 bg-red-600/20 border border-red-500/30 rounded-lg">
+                  <p className="text-sm text-red-300">
+                    ⚠️ Αποτυχία φόρτωσης πολιτών: {citizensError}
+                  </p>
+                </div>
+              )}
+              {/* Empty list warning */}
+              {!defaultCitizenId && !isCitizensLoading && !citizensError && getAvailablePersons().filter(person => formData.type === 'citizen' ? !person.isMilitary : person.isMilitary).length === 0 && (
                 <div className="mt-2 p-3 bg-yellow-600/20 border border-yellow-500/30 rounded-lg">
                   <p className="text-sm text-yellow-300">
                     ⚠️ Δεν υπάρχουν διαθέσιμοι {formData.type === 'citizen' ? 'πολίτες' : 'στρατιωτικοί'}.
@@ -661,15 +736,16 @@ export function RequestForm({ isOpen = true, onClose, onSubmit, onSuccess, reque
             </button>
             <button
               type="submit"
-              disabled={isSubmitting}
-              className="px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-lg flex items-center transition-colors"
+              disabled={isSubmitting || isCitizensLoading}
+              className="px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 disabled:cursor-not-allowed text-white rounded-lg flex items-center transition-colors"
+              title={isCitizensLoading ? 'Παρακαλώ περιμένετε να φορτώσει η λίστα πολιτών' : ''}
             >
-              {isSubmitting ? (
+              {isSubmitting || isCitizensLoading ? (
                 <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
               ) : (
                 <Save className="h-4 w-4 mr-2" />
               )}
-              {mode === 'add' ? 'Υποβολή' : 'Ενημέρωση'}
+              {isCitizensLoading ? 'Φόρτωση...' : mode === 'add' ? 'Υποβολή' : 'Ενημέρωση'}
             </button>
           </div>
         </form>

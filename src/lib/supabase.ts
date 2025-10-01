@@ -13,8 +13,7 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     persistSession: true,
     detectSessionInUrl: true,
     storageKey: 'politikoi-auth',
-    flowType: 'pkce',
-    debug: import.meta.env.DEV
+    flowType: 'implicit'
   },
   global: {
     headers: {

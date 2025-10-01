@@ -29,28 +29,28 @@ export function ProtectedRoute({ children, requireAdmin = false }: ProtectedRout
     )
   }
 
-  // TEMPORARY: Skip authentication check for testing
-  // if (!user) {
-  //   return <Navigate to="/login" state={{ from: location }} replace />
-  // }
+  // Check if user is authenticated
+  if (!user) {
+    return <Navigate to="/login" state={{ from: location }} replace />
+  }
 
-  // TEMPORARY: Skip admin check for testing
-  // if (requireAdmin && profile?.role !== 'admin') {
-  //   return (
-  //     <div className="p-6">
-  //       <div className="bg-red-900/20 border border-red-500 rounded-lg p-6 text-center">
-  //         <h2 className="text-xl font-semibold text-red-400 mb-2">Μη εξουσιοδοτημένη Πρόσβαση</h2>
-  //         <p className="text-red-300 mb-4">Δεν έχετε τα απαραίτητα δικαιώματα για πρόσβαση σε αυτή τη σελίδα.</p>
-  //         <button
-  //           onClick={() => window.history.back()}
-  //           className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg transition-colors"
-  //         >
-  //           Επιστροφή
-  //         </button>
-  //       </div>
-  //     </div>
-  //   )
-  // }
+  // Check if admin access is required
+  if (requireAdmin && profile?.role !== 'admin') {
+    return (
+      <div className="min-h-screen bg-slate-900 p-6">
+        <div className="bg-red-900/20 border border-red-500 rounded-lg p-6 text-center max-w-md mx-auto mt-20">
+          <h2 className="text-xl font-semibold text-red-400 mb-2">Μη εξουσιοδοτημένη Πρόσβαση</h2>
+          <p className="text-red-300 mb-4">Δεν έχετε τα απαραίτητα δικαιώματα για πρόσβαση σε αυτή τη σελίδα.</p>
+          <button
+            onClick={() => window.history.back()}
+            className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg transition-colors"
+          >
+            Επιστροφή
+          </button>
+        </div>
+      </div>
+    )
+  }
 
   return <>{children}</>
 }

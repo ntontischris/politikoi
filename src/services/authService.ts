@@ -41,53 +41,79 @@ class AuthService {
   async getAllUsers(): Promise<UserProfile[]> {
     const { data, error } = await supabase
       .from('user_profiles')
-      .select(`
-        *,
-        role:user_roles(role_name, permissions)
-      `)
+      .select('*')
       .order('created_at', { ascending: false })
 
     if (error) throw error
 
     return data.map(profile => ({
-      ...profile,
-      role: profile.role?.role_name || 'user',
-      permissions: profile.role?.permissions || {}
+      id: profile.id,
+      email: profile.email,
+      first_name: null,
+      last_name: null,
+      full_name: profile.full_name,
+      role: profile.role || 'user',
+      role_id: profile.role || 'user',
+      is_active: profile.is_active !== false,
+      last_login: profile.last_login_at,
+      created_at: profile.created_at,
+      updated_at: profile.updated_at,
+      permissions: profile.role === 'admin' ? { all: true } : {}
     }))
   }
 
   async createUser(userData: CreateUserData): Promise<{ user: any; error: any }> {
     try {
-      console.log('Creating user with custom function:', userData)
+      console.log('Creating user:', userData.email)
 
-      // Use custom database function to create user directly
-      const { data, error } = await supabaseAdmin.rpc('create_user_directly', {
-        user_email: userData.email,
-        user_password: userData.password,
-        user_full_name: userData.full_name,
-        user_role: userData.role
+      // Create user in auth.users via Supabase Auth Admin API
+      const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
+        email: userData.email,
+        password: userData.password,
+        email_confirm: true, // Auto-confirm email
+        user_metadata: {
+          full_name: userData.full_name
+        }
       })
 
-      if (error) {
-        console.error('Error calling create_user_directly:', error)
-        return { user: null, error }
+      if (authError) {
+        console.error('Error creating auth user:', authError)
+        return { user: null, error: authError }
       }
 
-      if (!data.success) {
-        console.error('User creation failed:', data.error)
-        return { user: null, error: new Error(data.error || 'Failed to create user') }
+      if (!authData.user) {
+        return { user: null, error: new Error('Failed to create auth user') }
       }
 
-      console.log('User created successfully:', data)
+      console.log('Auth user created:', authData.user.id)
 
-      // Return success with user data
+      // Create user profile in user_profiles table
+      const { data: profileData, error: profileError } = await supabaseAdmin
+        .from('user_profiles')
+        .insert({
+          id: authData.user.id,
+          email: userData.email,
+          full_name: userData.full_name,
+          role: userData.role,
+          is_active: true
+        })
+        .select()
+        .single()
+
+      if (profileError) {
+        console.error('Error creating user profile:', profileError)
+        // Rollback: delete auth user
+        await supabaseAdmin.auth.admin.deleteUser(authData.user.id)
+        return { user: null, error: profileError }
+      }
+
+      console.log('User created successfully')
+
       return {
         user: {
-          id: data.user_id,
-          email: data.email,
-          user_metadata: {
-            full_name: data.full_name
-          }
+          id: authData.user.id,
+          email: authData.user.email,
+          user_metadata: authData.user.user_metadata
         },
         error: null
       }
@@ -98,11 +124,9 @@ class AuthService {
   }
 
   async updateUserRole(userId: string, role: 'admin' | 'user'): Promise<void> {
-    const roleId = await this.getRoleId(role)
-    
     const { error } = await supabaseAdmin
       .from('user_profiles')
-      .update({ role_id: roleId })
+      .update({ role: role })
       .eq('id', userId)
 
     if (error) throw error
@@ -119,24 +143,29 @@ class AuthService {
 
   async deleteUser(userId: string): Promise<void> {
     try {
-      console.log('Deleting user with custom function:', userId)
+      console.log('Deleting user:', userId)
 
-      // Use custom database function to delete user completely
-      const { data, error } = await supabaseAdmin.rpc('delete_user_completely', {
-        user_id_to_delete: userId
-      })
+      // First delete from auth.users using Admin API
+      const { error: authError } = await supabaseAdmin.auth.admin.deleteUser(userId)
 
-      if (error) {
-        console.error('Error calling delete_user_completely:', error)
-        throw error
+      if (authError) {
+        console.error('Error deleting auth user:', authError)
+        throw authError
       }
 
-      if (!data.success) {
-        console.error('User deletion failed:', data.error)
-        throw new Error(data.error || 'Failed to delete user')
+      // Then delete from user_profiles
+      const { error: profileError } = await supabaseAdmin
+        .from('user_profiles')
+        .delete()
+        .eq('id', userId)
+
+      if (profileError) {
+        console.error('Error deleting user profile:', profileError)
+        // Don't throw - auth user is already deleted
+        console.warn('Profile deletion failed but auth user was deleted')
       }
 
-      console.log('User deleted successfully:', data)
+      console.log('User deleted successfully')
     } catch (error) {
       console.error('Error deleting user:', error)
       throw error
@@ -264,26 +293,12 @@ class AuthService {
   }
 
   // Helper Methods
-  private async getRoleId(roleName: string): Promise<string> {
-    // Use admin client to ensure we can always read roles
-    const { data, error } = await supabaseAdmin
-      .from('user_roles')
-      .select('id')
-      .eq('role_name', roleName)
-      .single()
-
-    if (error) throw error
-    return data.id
-  }
-
   async getRoles() {
-    const { data, error } = await supabase
-      .from('user_roles')
-      .select('*')
-      .order('role_name')
-
-    if (error) throw error
-    return data || []
+    // Return static roles since we don't have user_roles table
+    return [
+      { id: 'admin', role_name: 'admin', permissions: { all: true } },
+      { id: 'user', role_name: 'user', permissions: {} }
+    ]
   }
 
   // Manual audit log entry for custom actions
@@ -295,7 +310,7 @@ class AuthService {
     newValues?: Record<string, any>
   ): Promise<void> {
     const { data: { user } } = await supabase.auth.getUser()
-    
+
     if (!user) return
 
     const { data: profile } = await supabase

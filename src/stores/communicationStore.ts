@@ -71,7 +71,7 @@ const communicationServiceAdapter = {
 
 // Create the realtime communication store
 export const useCommunicationStore = createRealtimeStore<CommunicationDate>({
-  tableName: 'communications',
+  tableName: 'citizen_communication_dates', // FIXED: Use correct table name from database
   transformFromDB: transformDBCommunication,
   transformToDB: transformToDBInput,
   service: communicationServiceAdapter

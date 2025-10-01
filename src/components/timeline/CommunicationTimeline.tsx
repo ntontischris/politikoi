@@ -43,7 +43,21 @@ export const CommunicationTimeline: React.FC<CommunicationTimelineProps> = ({
   const [editingCommunication, setEditingCommunication] = useState<CommunicationDate | null>(null)
   const [communications, setCommunications] = useState<CommunicationDate[]>([])
 
-  // Load communications on mount
+  // Initialize realtime connection on mount
+  useEffect(() => {
+    const initializeStore = async () => {
+      try {
+        // Initialize realtime subscription for the communications store
+        await store.initialize()
+      } catch (error) {
+        console.error('Error initializing communications store:', error)
+      }
+    }
+
+    initializeStore()
+  }, []) // Run once on mount
+
+  // Load citizen-specific communications
   useEffect(() => {
     const loadData = async () => {
       try {
@@ -54,8 +68,22 @@ export const CommunicationTimeline: React.FC<CommunicationTimelineProps> = ({
       }
     }
 
-    loadData()
-  }, [citizenId])
+    // Only load if store is initialized
+    if (store.isInitialized) {
+      loadData()
+    }
+  }, [citizenId, store.isInitialized])
+
+  // REALTIME SYNC: Update local communications when store items change
+  useEffect(() => {
+    // Filter communications for this citizen from the realtime store
+    const citizenComms = store.items.filter(comm => comm.citizenId === citizenId)
+
+    // Update local state with realtime data
+    if (citizenComms.length > 0 || store.items.length > 0) {
+      setCommunications(citizenComms)
+    }
+  }, [store.items, store.lastSync, citizenId]) // Re-run when store updates
 
   // Filter communications from store items (fallback)
   const storeComms = (store.items || []).filter(comm => comm.citizenId === citizenId)

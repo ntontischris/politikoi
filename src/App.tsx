@@ -7,6 +7,7 @@ import { useAuthStore } from './stores/authStore'
 // Lazy load components to reduce initial bundle size
 const Dashboard = lazy(() => import('./pages/Dashboard').then(module => ({ default: module.Dashboard })))
 const Citizens = lazy(() => import('./pages/Citizens').then(module => ({ default: module.Citizens })))
+const Military = lazy(() => import('./pages/Military').then(module => ({ default: module.Military })))
 const Requests = lazy(() => import('./pages/Requests').then(module => ({ default: module.Requests })))
 const Reports = lazy(() => import('./pages/Reports').then(module => ({ default: module.Reports })))
 const Settings = lazy(() => import('./pages/Settings').then(module => ({ default: module.Settings })))
@@ -57,9 +58,7 @@ function App() {
           }>
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/dashboard/citizens" element={<Citizens />} />
-            {/* Military routes are now integrated into Citizens page */}
-            {/* <Route path="/dashboard/military" element={<Military />} />
-            <Route path="/dashboard/military-esso" element={<MilitaryEsso />} /> */}
+            <Route path="/dashboard/military" element={<Military />} />
             <Route path="/dashboard/requests" element={<Requests />} />
             <Route path="/dashboard/reports" element={<Reports />} />
             <Route path="/dashboard/settings" element={
@@ -76,7 +75,8 @@ function App() {
             </ProtectedRoute>
           } />
 
-          <Route path="*" element={<Navigate to="/dashboard" replace />} />
+          {/* Catch all - redirect to home page instead of dashboard */}
+          <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </Suspense>
       </div>

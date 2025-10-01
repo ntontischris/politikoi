@@ -100,6 +100,7 @@ export function Layout() {
   const navigationItems = [
     { name: 'Dashboard', href: '/dashboard', icon: Home, color: 'text-blue-400' },
     { name: 'Πολίτες', href: '/dashboard/citizens', icon: Users, color: 'text-green-400' },
+    { name: 'Στρατιωτικοί', href: '/dashboard/military', icon: Shield, color: 'text-cyan-400' },
     { name: 'Αιτήματα', href: '/dashboard/requests', icon: FileText, color: 'text-orange-400' },
     { name: 'Αναφορές', href: '/dashboard/reports', icon: BarChart3, color: 'text-purple-400' },
     ...(isAdmin()
@@ -190,6 +191,7 @@ export function Layout() {
               <NavLink
                 key={item.name}
                 to={item.href}
+                end={item.href === '/dashboard'}
                 className={({ isActive }) =>
                   `group relative flex items-center px-3 py-3 text-sm font-medium rounded-xl transition-all duration-200 touch-target-lg ${
                     isActive

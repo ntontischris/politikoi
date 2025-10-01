@@ -200,6 +200,12 @@ export function RequestViewModal({ request, isOpen, onClose, onEdit, zIndex = 99
                   <p className="text-gray-400 text-sm">Προτεραιότητα</p>
                   <p className="text-white font-medium">{getPriorityText(request.priority)}</p>
                 </div>
+                {request.department && (
+                  <div className="md:col-span-2">
+                    <p className="text-gray-400 text-sm">Αρμόδιο Τμήμα</p>
+                    <p className="text-white font-medium">{request.department}</p>
+                  </div>
+                )}
                 {request.sendDate && (
                   <div>
                     <p className="text-gray-400 text-sm">Ημερομηνία Αποστολής</p>
