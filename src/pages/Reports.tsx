@@ -40,9 +40,25 @@ export function Reports() {
   const { items: citizens } = useRealtimeCitizenStore()
   const { items: requests } = useRequestStore()
   const { items: militaryPersonnel } = useMilitaryStore()
-  
-  // Get analytics data
-  const analyticsData = AnalyticsService.getFullAnalytics()
+
+  // Adapter: Convert military personnel to citizen-like interface for analytics
+  const militaryAsCitizens = militaryPersonnel.map(m => ({
+    ...m,
+    name: m.name,
+    surname: m.surname,
+    militaryEsso: m.esso,
+    militaryEssoYear: m.essoYear,
+    militaryEssoLetter: m.essoLetter,
+    militaryRank: m.rank,
+    militaryServiceUnit: m.unit,
+    militaryWish: m.wish,
+    militaryStatus: m.status as any,
+    created_at: m.created_at,
+    updated_at: m.updated_at
+  })) as any[]
+
+  // Get analytics data with real data (using adapted military data)
+  const analyticsData = AnalyticsService.getFullAnalytics(citizens, requests, militaryAsCitizens)
 
   const reportTypes = [
     {
@@ -91,18 +107,31 @@ export function Reports() {
     let data: any[] = []
     let summary: any = {}
 
+    // Apply date filtering if needed
+    const filterByDate = (item: any) => {
+      if (filters.dateRange === 'custom') {
+        if (filters.startDate && filters.endDate) {
+          const itemDate = new Date(item.created_at)
+          const start = new Date(filters.startDate)
+          const end = new Date(filters.endDate)
+          return itemDate >= start && itemDate <= end
+        }
+      }
+      return true // No filtering if not custom or dates not set
+    }
+
     switch (filters.type) {
       case 'citizens':
-        data = citizens || []
+        data = (citizens || []).filter(filterByDate)
         summary = {
           total: data.length,
-          active: data.filter(c => c.status === 'active').length,
-          pending: 0,
-          completed: 0
+          active: data.filter(c => c.status === 'ΟΛΟΚΛΗΡΩΜΕΝΑ').length,
+          pending: data.filter(c => c.status === 'ΕΚΚΡΕΜΗ').length,
+          completed: data.filter(c => c.status === 'ΟΛΟΚΛΗΡΩΜΕΝΑ').length
         }
         break
       case 'requests':
-        data = requests || []
+        data = (requests || []).filter(filterByDate)
         summary = {
           total: data.length,
           active: data.filter(r => r.status === 'in-progress').length,
@@ -111,22 +140,70 @@ export function Reports() {
         }
         break
       case 'military':
-        data = militaryPersonnel || []
+        // Use original military personnel for reports (not adapted)
+        data = (militaryPersonnel || []).filter(item => {
+          if (filters.dateRange === 'custom') {
+            if (filters.startDate && filters.endDate) {
+              const itemDate = new Date(item.created_at)
+              const start = new Date(filters.startDate)
+              const end = new Date(filters.endDate)
+              return itemDate >= start && itemDate <= end
+            }
+          }
+          return true
+        })
         summary = {
           total: data.length,
-          active: data.length,
-          pending: 0,
-          completed: 0
+          active: data.filter(m => m.status === 'approved' || m.status === 'completed').length,
+          pending: data.filter(m => m.status === 'pending').length,
+          completed: data.filter(m => m.status === 'completed').length
         }
         break
       default:
         return null
     }
 
+    // Apply status filter if needed
+    if (filters.status && filters.status !== 'all') {
+      switch (filters.status) {
+        case 'active':
+          data = data.filter(item => {
+            if (filters.type === 'citizens') return item.status === 'ΟΛΟΚΛΗΡΩΜΕΝΑ'
+            if (filters.type === 'requests') return item.status === 'in-progress'
+            if (filters.type === 'military') return (item as any).status === 'approved'
+            return false
+          })
+          break
+        case 'pending':
+          data = data.filter(item => {
+            if (filters.type === 'citizens') return item.status === 'ΕΚΚΡΕΜΗ'
+            if (filters.type === 'requests') return item.status === 'pending'
+            if (filters.type === 'military') return (item as any).status === 'pending'
+            return false
+          })
+          break
+        case 'completed':
+          data = data.filter(item => {
+            if (filters.type === 'citizens') return item.status === 'ΟΛΟΚΛΗΡΩΜΕΝΑ'
+            if (filters.type === 'requests') return item.status === 'completed'
+            if (filters.type === 'military') return (item as any).status === 'completed'
+            return false
+          })
+          break
+      }
+    }
+
+    const dateRangeText = filters.dateRange === 'custom' && filters.startDate && filters.endDate
+      ? `${new Date(filters.startDate).toLocaleDateString('el-GR')} - ${new Date(filters.endDate).toLocaleDateString('el-GR')}`
+      : `${filters.dateRange === 'week' ? 'Τελευταία Εβδομάδα' :
+          filters.dateRange === 'month' ? 'Τελευταίος Μήνας' :
+          filters.dateRange === 'quarter' ? 'Τελευταίο Τρίμηνο' :
+          filters.dateRange === 'year' ? 'Τελευταίος Χρόνος' : 'Όλες οι περίοδοι'}`
+
     return {
       title: reportType.title,
       type: filters.type,
-      dateRange: `${filters.dateRange} - ${new Date().toLocaleDateString('el-GR')}`,
+      dateRange: `${dateRangeText} - ${new Date().toLocaleDateString('el-GR')}`,
       data,
       summary
     }
@@ -240,7 +317,7 @@ export function Reports() {
             <label className="block text-sm font-medium text-gray-400 mb-2">
               Τύπος Αναφοράς
             </label>
-            <select 
+            <select
               value={filters.type}
               onChange={(e) => setFilters(prev => ({ ...prev, type: e.target.value as any }))}
               className="w-full bg-slate-700 border border-slate-600 text-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 touch-target"
@@ -251,12 +328,12 @@ export function Reports() {
               <option value="analytics">Στατιστικά</option>
             </select>
           </div>
-          
+
           <div>
             <label className="block text-sm font-medium text-gray-400 mb-2">
               Περίοδος
             </label>
-            <select 
+            <select
               value={filters.dateRange}
               onChange={(e) => setFilters(prev => ({ ...prev, dateRange: e.target.value as any }))}
               className="w-full bg-slate-700 border border-slate-600 text-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 touch-target"
@@ -268,12 +345,12 @@ export function Reports() {
               <option value="custom">Προσαρμοσμένη</option>
             </select>
           </div>
-          
+
           <div>
             <label className="block text-sm font-medium text-gray-400 mb-2">
               Κατάσταση
             </label>
-            <select 
+            <select
               value={filters.status}
               onChange={(e) => setFilters(prev => ({ ...prev, status: e.target.value as any }))}
               className="w-full bg-slate-700 border border-slate-600 text-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 touch-target"
@@ -284,9 +361,9 @@ export function Reports() {
               <option value="completed">Ολοκληρωμένα</option>
             </select>
           </div>
-          
+
           <div className="flex items-end sm:col-span-2 lg:col-span-1">
-            <button 
+            <button
               onClick={() => setShowPrintModal(true)}
               className="w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center justify-center transition-colors duration-200 touch-target"
             >
@@ -295,6 +372,36 @@ export function Reports() {
             </button>
           </div>
         </div>
+
+        {/* Custom Date Range */}
+        {filters.dateRange === 'custom' && (
+          <div className="mt-4 pt-4 border-t border-slate-600">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-400 mb-2">
+                  Από Ημερομηνία
+                </label>
+                <input
+                  type="date"
+                  value={filters.startDate}
+                  onChange={(e) => setFilters(prev => ({ ...prev, startDate: e.target.value }))}
+                  className="w-full bg-slate-700 border border-slate-600 text-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 touch-target"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-400 mb-2">
+                  Έως Ημερομηνία
+                </label>
+                <input
+                  type="date"
+                  value={filters.endDate}
+                  onChange={(e) => setFilters(prev => ({ ...prev, endDate: e.target.value }))}
+                  className="w-full bg-slate-700 border border-slate-600 text-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 touch-target"
+                />
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Quick Stats */}

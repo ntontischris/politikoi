@@ -44,18 +44,65 @@ export const PrintableReport: React.FC<PrintableReportProps> = ({
       {reportData.data.map((citizen, index) => (
         <div key={index} className="border-b border-slate-600 pb-4">
           <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start space-y-2 sm:space-y-0">
-            <div>
-              <h4 className="text-white font-medium">
-                {citizen.firstName} {citizen.lastName}
+            <div className="flex-1">
+              <h4 className="text-white font-medium text-base mb-1">
+                {citizen.name} {citizen.surname}
               </h4>
-              <p className="text-gray-400 text-sm">ΑΦΚΑ: {citizen.afka}</p>
-              <p className="text-gray-400 text-sm">Τηλέφωνο: {citizen.phone}</p>
+              {citizen.afm && (
+                <p className="text-gray-400 text-sm mb-1">ΑΦΜ: {citizen.afm}</p>
+              )}
+              {citizen.phone && (
+                <p className="text-gray-400 text-sm mb-1">📞 {citizen.phone}</p>
+              )}
+              {citizen.landline && (
+                <p className="text-gray-400 text-sm mb-1">🏠 {citizen.landline}</p>
+              )}
+              {citizen.email && (
+                <p className="text-gray-400 text-sm mb-1">✉️ {citizen.email}</p>
+              )}
+              {citizen.requestCategory && (
+                <p className="text-purple-400 text-xs mt-1">Κατηγορία: {citizen.requestCategory}</p>
+              )}
+              {citizen.request && (
+                <p className="text-gray-300 text-sm mt-2 line-clamp-2">{citizen.request}</p>
+              )}
+              {citizen.isMilitary && (
+                <div className="flex items-center gap-2 mt-2">
+                  <span className="px-2 py-1 rounded bg-green-500/20 text-green-400 text-xs font-medium">
+                    {citizen.militaryType === 'career' ? 'ΜΟΝΙΜΟΣ' : 'ΣΤΡΑΤΙΩΤΙΚΟΣ'}
+                  </span>
+                  {citizen.militaryEsso && (
+                    <span className="text-cyan-400 text-xs">ΕΣΣΟ: {citizen.militaryEsso}</span>
+                  )}
+                </div>
+              )}
             </div>
-            <div className="sm:text-right">
-              <p className="text-blue-400 text-sm">{citizen.municipality}</p>
-              <p className="text-gray-500 text-xs">
-                Καταχωρήθηκε: {formatDate(citizen.createdAt)}
-              </p>
+            <div className="sm:text-right sm:ml-4 flex-shrink-0">
+              {citizen.municipality && (
+                <p className="text-blue-400 text-sm mb-1">{citizen.municipality}</p>
+              )}
+              {citizen.region && (
+                <p className="text-gray-400 text-xs mb-2">{citizen.region}</p>
+              )}
+              {citizen.status && (
+                <span className={`px-2 py-1 rounded-full text-xs font-medium inline-block mb-2 ${
+                  citizen.status === 'ΟΛΟΚΛΗΡΩΜΕΝΑ' ? 'bg-green-500/20 text-green-400' :
+                  citizen.status === 'ΕΚΚΡΕΜΗ' ? 'bg-yellow-500/20 text-yellow-400' :
+                  'bg-red-500/20 text-red-400'
+                }`}>
+                  {citizen.status}
+                </span>
+              )}
+              {citizen.created_at && (
+                <p className="text-gray-500 text-xs">
+                  Δημιουργήθηκε: {formatDate(citizen.created_at)}
+                </p>
+              )}
+              {citizen.addedDate && (
+                <p className="text-gray-500 text-xs">
+                  Προστέθηκε: {formatDate(citizen.addedDate)}
+                </p>
+              )}
             </div>
           </div>
         </div>
@@ -96,34 +143,66 @@ export const PrintableReport: React.FC<PrintableReportProps> = ({
   
   const renderMilitaryReport = () => (
     <div className="space-y-4">
-      {reportData.data.map((personnel, index) => (
-        <div key={index} className="border-b border-slate-600 pb-4">
-          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start space-y-2 sm:space-y-0">
-            <div>
-              <h4 className="text-white font-medium">
-                {personnel.rank} {personnel.name} {personnel.surname}
-              </h4>
-              <p className="text-gray-400 text-sm">ΑΜ: {personnel.militaryId}</p>
-              <p className="text-gray-400 text-sm">Μονάδα: {personnel.unit}</p>
-            </div>
-            <div className="sm:text-right">
-              <p className="text-blue-400 text-sm">ΕΣΣΟ: {personnel.esso}</p>
-              <p className="text-gray-400 text-sm">{personnel.requestType}</p>
-              <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                personnel.status === 'approved' ? 'bg-green-500/20 text-green-400' :
-                personnel.status === 'pending' ? 'bg-yellow-500/20 text-yellow-400' :
-                personnel.status === 'rejected' ? 'bg-red-500/20 text-red-400' :
-                'bg-blue-500/20 text-blue-400'
-              }`}>
-                {personnel.status === 'approved' ? 'Εγκρίθηκε' :
-                 personnel.status === 'pending' ? 'Εκκρεμεί' :
-                 personnel.status === 'rejected' ? 'Απορρίφθηκε' :
-                 'Ολοκληρώθηκε'}
-              </span>
+      {reportData.data.map((personnel, index) => {
+        // Support both military personnel interface and citizen interface
+        const rank = personnel.militaryRank || personnel.rank
+        const unit = personnel.militaryServiceUnit || personnel.unit
+        const wish = personnel.militaryWish || personnel.wish
+        const esso = personnel.militaryEsso || personnel.esso
+        const militaryId = personnel.militaryId
+        const status = personnel.militaryStatus || personnel.status
+        const sendDate = personnel.militarySendDate || personnel.sendDate
+
+        return (
+          <div key={index} className="border-b border-slate-600 pb-4">
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start space-y-2 sm:space-y-0">
+              <div className="flex-1">
+                <h4 className="text-white font-medium text-base mb-2">
+                  {rank && `${rank} `}
+                  {personnel.name} {personnel.surname}
+                </h4>
+                {militaryId && (
+                  <p className="text-gray-400 text-sm mb-1">ΑΜ: {militaryId}</p>
+                )}
+                {unit && (
+                  <p className="text-gray-400 text-sm mb-1">Μονάδα: {unit}</p>
+                )}
+                {wish && (
+                  <p className="text-gray-300 text-sm mt-2">Επιθυμία: {wish}</p>
+                )}
+              </div>
+              <div className="sm:text-right sm:ml-4 flex-shrink-0">
+                {esso && (
+                  <p className="text-blue-400 text-sm font-medium mb-2">ΕΣΣΟ: {esso}</p>
+                )}
+                {status && (
+                  <span className={`px-2 py-1 rounded-full text-xs font-medium inline-block ${
+                    status === 'approved' ? 'bg-green-500/20 text-green-400' :
+                    status === 'pending' ? 'bg-yellow-500/20 text-yellow-400' :
+                    status === 'rejected' ? 'bg-red-500/20 text-red-400' :
+                    'bg-blue-500/20 text-blue-400'
+                  }`}>
+                    {status === 'approved' ? 'Εγκρίθηκε' :
+                     status === 'pending' ? 'Εκκρεμεί' :
+                     status === 'rejected' ? 'Απορρίφθηκε' :
+                     'Ολοκληρώθηκε'}
+                  </span>
+                )}
+                {sendDate && (
+                  <p className="text-gray-500 text-xs mt-2">
+                    Αποστολή: {formatDate(sendDate)}
+                  </p>
+                )}
+                {personnel.created_at && (
+                  <p className="text-gray-500 text-xs">
+                    Καταχώρηση: {formatDate(personnel.created_at)}
+                  </p>
+                )}
+              </div>
             </div>
           </div>
-        </div>
-      ))}
+        )
+      })}
     </div>
   )
   
