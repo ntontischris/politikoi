@@ -100,14 +100,22 @@ const useRealtimeReminderStore = create<RealtimeReminderStore>((set, get) => {
     },
 
     // Initialize realtime connection
-    initialize: async () => {
-      if (get().isInitialized) {
-        console.log('🔄 RealtimeReminderStore: Already initialized, skipping...')
+    initialize: async (forceReinit = false) => {
+      const state = get()
+
+      // Skip if already initialized (unless forcing reinit after connection loss)
+      if (state.isInitialized && !forceReinit) {
+        console.log('✅ RealtimeReminderStore: Already initialized, skipping...')
+        return
+      }
+
+      if (state.isLoading) {
+        console.log('⏳ RealtimeReminderStore: Already initializing, waiting...')
         return
       }
 
       set({ isLoading: true, error: null })
-      console.log('🚀 RealtimeReminderStore: Initializing...')
+      console.log(`🚀 RealtimeReminderStore: ${forceReinit ? 'Re-initializing' : 'Initializing'}...`)
 
       try {
         // 1. Load initial data from database
@@ -195,6 +203,39 @@ const useRealtimeReminderStore = create<RealtimeReminderStore>((set, get) => {
               isConnected,
               error: error ? `Realtime error: ${error.message}` : get().error
             })
+
+            // If disconnected unexpectedly, reset initialization and schedule reconnect
+            if (!isConnected && (status === 'CLOSED' || status === 'CHANNEL_ERROR')) {
+              console.log('⚠️ Reminders: Connection lost, resetting initialization state')
+              set({ isInitialized: false })
+
+              // Schedule automatic reconnection with exponential backoff
+              let retryCount = 0
+              const maxRetries = 3
+              const attemptReconnect = () => {
+                if (retryCount >= maxRetries) {
+                  console.log('❌ Reminders: Max reconnection attempts reached')
+                  return
+                }
+
+                const delay = Math.min(1000 * Math.pow(2, retryCount), 10000)
+                retryCount++
+
+                console.log(`🔄 Reminders: Reconnection attempt ${retryCount}/${maxRetries} in ${delay}ms`)
+                setTimeout(async () => {
+                  if (!get().isConnected && !get().isInitialized) {
+                    console.log('🔄 Reminders: Attempting reconnection...')
+                    await get().initialize(true)
+
+                    if (!get().isConnected) {
+                      attemptReconnect()
+                    }
+                  }
+                }, delay)
+              }
+
+              attemptReconnect()
+            }
           }
         })
 
@@ -202,6 +243,7 @@ const useRealtimeReminderStore = create<RealtimeReminderStore>((set, get) => {
         console.error('❌ Failed to initialize reminders store:', error)
         set({
           isLoading: false,
+          isInitialized: false, // Reset on error
           error: error instanceof Error ? error.message : 'Σφάλμα σύνδεσης υπενθυμίσεων'
         })
       }

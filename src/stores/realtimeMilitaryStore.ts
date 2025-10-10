@@ -51,39 +51,41 @@ interface RealtimeMilitaryStoreActions {
 
 type RealtimeMilitaryStore = RealtimeMilitaryStoreState & RealtimeMilitaryStoreActions
 
-// Helper function to transform database military personnel to frontend
-const transformDBMilitaryPersonnel = (dbPersonnel: DBMilitaryPersonnel): MilitaryPersonnel => ({
-  id: dbPersonnel.id,
-  name: dbPersonnel.name,
-  surname: dbPersonnel.surname,
-  rank: dbPersonnel.rank || '',
-  unit: dbPersonnel.service_unit || '',
-  wish: dbPersonnel.wish || undefined,
-  sendDate: dbPersonnel.send_date || undefined,
-  comments: dbPersonnel.comments || undefined,
-  militaryId: dbPersonnel.military_id || '',
-  esso: dbPersonnel.esso || '',
-  essoYear: dbPersonnel.esso_year || '',
-  essoLetter: dbPersonnel.esso_letter || '',
-  status: dbPersonnel.status || 'pending',
-  created_at: dbPersonnel.created_at,
-  updated_at: dbPersonnel.updated_at
+// Helper function to transform database citizen (with military fields) to frontend military personnel
+// NOTE: This reads from the 'citizens' table, not 'military_personnel' table
+const transformDBMilitaryPersonnel = (dbCitizen: any): MilitaryPersonnel => ({
+  id: dbCitizen.id,
+  name: dbCitizen.name,
+  surname: dbCitizen.surname,
+  rank: dbCitizen.militaryRank || '',              // from citizens.militaryRank
+  unit: dbCitizen.militaryServiceUnit || '',       // from citizens.militaryServiceUnit
+  wish: dbCitizen.militaryWish || undefined,       // from citizens.militaryWish
+  sendDate: dbCitizen.military_send_date || undefined,
+  comments: dbCitizen.military_comments || undefined,
+  militaryId: dbCitizen.military_id || '',
+  esso: dbCitizen.militaryEsso || '',              // from citizens.militaryEsso
+  essoYear: dbCitizen.military_esso_year || '',    // from citizens.military_esso_year
+  essoLetter: dbCitizen.military_esso_letter || '',// from citizens.military_esso_letter
+  status: dbCitizen.military_status || 'pending',  // from citizens.military_status
+  created_at: dbCitizen.created_at,
+  updated_at: dbCitizen.updated_at
 })
 
-// Helper function to transform frontend to database input
-const transformToDBInput = (personnel: Partial<MilitaryPersonnel>): Partial<MilitaryPersonnelInput> => ({
+// Helper function to transform frontend to database input for 'citizens' table
+const transformToDBInput = (personnel: Partial<MilitaryPersonnel>): any => ({
   name: personnel.name,
   surname: personnel.surname,
-  rank: personnel.rank?.trim() || null,
-  service_unit: personnel.unit?.trim() || null,
-  wish: personnel.wish?.trim() || null,
-  send_date: personnel.sendDate || null,
-  comments: personnel.comments?.trim() || null,
+  militaryRank: personnel.rank?.trim() || null,              // to citizens.militaryRank
+  militaryServiceUnit: personnel.unit?.trim() || null,       // to citizens.militaryServiceUnit
+  militaryWish: personnel.wish?.trim() || null,              // to citizens.militaryWish
+  military_send_date: personnel.sendDate || null,
+  military_comments: personnel.comments?.trim() || null,
   military_id: personnel.militaryId?.trim() || null,
-  esso: personnel.esso?.trim() || null,
-  esso_year: personnel.essoYear?.trim() || null,
-  esso_letter: (personnel.essoLetter?.trim() as 'Α' | 'Β' | 'Γ' | 'Δ' | 'Ε' | 'ΣΤ') || null,
-  status: personnel.status || 'pending'
+  militaryEsso: personnel.esso?.trim() || null,              // to citizens.militaryEsso
+  military_esso_year: personnel.essoYear?.trim() || null,    // to citizens.military_esso_year
+  military_esso_letter: (personnel.essoLetter?.trim() as 'Α' | 'Β' | 'Γ' | 'Δ' | 'Ε' | 'ΣΤ') || null,
+  military_status: personnel.status || 'pending',            // to citizens.military_status
+  isMilitary: true  // ensure isMilitary flag is set
 })
 
 /**
@@ -110,20 +112,29 @@ const useRealtimeMilitaryStore = create<RealtimeMilitaryStore>((set, get) => {
     },
 
     // Initialize realtime connection
-    initialize: async () => {
-      if (get().isInitialized) {
-        console.log('🔄 RealtimeMilitaryStore: Already initialized, skipping...')
+    initialize: async (forceReinit = false) => {
+      const state = get()
+
+      // Skip if already initialized (unless forcing reinit after connection loss)
+      if (state.isInitialized && !forceReinit) {
+        console.log('✅ RealtimeMilitaryStore: Already initialized, skipping...')
+        return
+      }
+
+      if (state.isLoading) {
+        console.log('⏳ RealtimeMilitaryStore: Already initializing, waiting...')
         return
       }
 
       set({ isLoading: true, error: null })
-      console.log('🚀 RealtimeMilitaryStore: Initializing...')
+      console.log(`🚀 RealtimeMilitaryStore: ${forceReinit ? 'Re-initializing' : 'Initializing'}...`)
 
       try {
-        // 1. Load initial data from database
+        // 1. Load initial data from database (from citizens table with isMilitary filter)
         const { data, error } = await supabase
-          .from('military_personnel')
+          .from('citizens')
           .select('*')
+          .eq('isMilitary', true)
           .order('created_at', { ascending: false })
 
         if (error) {
@@ -141,15 +152,20 @@ const useRealtimeMilitaryStore = create<RealtimeMilitaryStore>((set, get) => {
 
         console.log(`✅ Loaded ${transformedData.length} military personnel from database`)
 
-        // 2. Subscribe to realtime updates με RealtimeManager
+        // 2. Subscribe to realtime updates με RealtimeManager (citizens table, filtered by isMilitary)
         realtimeManager.subscribe({
-          tableName: 'military_personnel',
+          tableName: 'citizens',
           storeId,
           onInsert: (payload) => {
             try {
-              console.log('➕ New military personnel:', payload.new)
+              console.log('➕ New citizen (checking if military):', payload.new)
               if (!payload.new) {
                 console.warn('INSERT payload missing new data')
+                return
+              }
+
+              // Only process if this is a military citizen
+              if (!payload.new.isMilitary) {
                 return
               }
 
@@ -164,12 +180,22 @@ const useRealtimeMilitaryStore = create<RealtimeMilitaryStore>((set, get) => {
           },
           onUpdate: (payload) => {
             try {
-              console.log('📝 Updated military personnel:', payload.new)
+              console.log('📝 Updated citizen (checking if military):', payload.new)
               if (!payload.new) {
                 console.warn('UPDATE payload missing new data')
                 return
               }
 
+              // If updated to non-military, remove from list
+              if (!payload.new.isMilitary) {
+                set(state => ({
+                  items: state.items.filter(item => item.id !== payload.new.id),
+                  lastSync: Date.now()
+                }))
+                return
+              }
+
+              // If still military, update the item
               const updatedItem = transformDBMilitaryPersonnel(payload.new)
               set(state => ({
                 items: state.items.map(item =>
@@ -205,6 +231,39 @@ const useRealtimeMilitaryStore = create<RealtimeMilitaryStore>((set, get) => {
               isConnected,
               error: error ? `Realtime error: ${error.message}` : get().error
             })
+
+            // If disconnected unexpectedly, reset initialization and schedule reconnect
+            if (!isConnected && (status === 'CLOSED' || status === 'CHANNEL_ERROR')) {
+              console.log('⚠️ Military: Connection lost, resetting initialization state')
+              set({ isInitialized: false })
+
+              // Schedule automatic reconnection with exponential backoff
+              let retryCount = 0
+              const maxRetries = 3
+              const attemptReconnect = () => {
+                if (retryCount >= maxRetries) {
+                  console.log('❌ Military: Max reconnection attempts reached')
+                  return
+                }
+
+                const delay = Math.min(1000 * Math.pow(2, retryCount), 10000)
+                retryCount++
+
+                console.log(`🔄 Military: Reconnection attempt ${retryCount}/${maxRetries} in ${delay}ms`)
+                setTimeout(async () => {
+                  if (!get().isConnected && !get().isInitialized) {
+                    console.log('🔄 Military: Attempting reconnection...')
+                    await get().initialize(true)
+
+                    if (!get().isConnected) {
+                      attemptReconnect()
+                    }
+                  }
+                }, delay)
+              }
+
+              attemptReconnect()
+            }
           }
         })
 
@@ -212,6 +271,7 @@ const useRealtimeMilitaryStore = create<RealtimeMilitaryStore>((set, get) => {
         console.error('❌ Failed to initialize military personnel store:', error)
         set({
           isLoading: false,
+          isInitialized: false, // Reset on error
           error: error instanceof Error ? error.message : 'Σφάλμα σύνδεσης στρατιωτικού προσωπικού'
         })
       }
@@ -220,7 +280,7 @@ const useRealtimeMilitaryStore = create<RealtimeMilitaryStore>((set, get) => {
     // Disconnect realtime
     disconnect: () => {
       console.log('🔌 Disconnecting military personnel realtime')
-      realtimeManager.unsubscribe('military_personnel', storeId)
+      realtimeManager.unsubscribe('citizens', storeId)
       set({
         isConnected: false,
         isInitialized: false
@@ -232,8 +292,9 @@ const useRealtimeMilitaryStore = create<RealtimeMilitaryStore>((set, get) => {
       try {
         console.log('🔄 Fallback reload for military personnel...')
         const { data, error } = await supabase
-          .from('military_personnel')
+          .from('citizens')
           .select('*')
+          .eq('isMilitary', true)
           .order('created_at', { ascending: false })
 
         if (error) throw error
@@ -256,8 +317,9 @@ const useRealtimeMilitaryStore = create<RealtimeMilitaryStore>((set, get) => {
         set({ error: null })
 
         const dbInput = transformToDBInput(itemData)
+        // isMilitary is already set in transformToDBInput
         const { data, error } = await supabase
-          .from('military_personnel')
+          .from('citizens')
           .insert(dbInput)
           .select()
           .single()
@@ -280,7 +342,7 @@ const useRealtimeMilitaryStore = create<RealtimeMilitaryStore>((set, get) => {
 
         const dbInput = transformToDBInput(itemData)
         const { error } = await supabase
-          .from('military_personnel')
+          .from('citizens')
           .update(dbInput)
           .eq('id', id)
 
@@ -301,7 +363,7 @@ const useRealtimeMilitaryStore = create<RealtimeMilitaryStore>((set, get) => {
         set({ error: null })
 
         const { error } = await supabase
-          .from('military_personnel')
+          .from('citizens')
           .delete()
           .eq('id', id)
 
