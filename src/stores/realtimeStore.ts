@@ -10,6 +10,8 @@ interface RealtimeStoreState<T> {
   isConnected: boolean
   lastSync: number
   isInitialized: boolean
+  pendingOperations: Set<string> // Track IDs of items being modified locally
+  tempIdMap: Map<string, string> // Map temp IDs to real IDs for deduplication
 }
 
 interface RealtimeStoreActions<T> {
@@ -60,6 +62,10 @@ export function createRealtimeStore<T extends { id: string }>(
   return create<RealtimeStore<T>>((set, get) => {
     const storeId = `${tableName}_store_${Date.now()}`
 
+    // Track pending operations to avoid race conditions
+    const pendingOperations = new Set<string>()
+    const tempIdMap = new Map<string, string>()
+
     return {
       // Initial state - EXACT same as baseStore
       items: [],
@@ -68,6 +74,8 @@ export function createRealtimeStore<T extends { id: string }>(
       isConnected: false,
       lastSync: 0,
       isInitialized: false,
+      pendingOperations,
+      tempIdMap,
 
       // Compatible loadItems method (για existing components)
       loadItems: async () => {
@@ -150,6 +158,34 @@ export function createRealtimeStore<T extends { id: string }>(
                 }
 
                 const newItem = transformFromDB(payload.new)
+                const realId = newItem.id
+
+                // Check if this is from our own operation (deduplication)
+                if (pendingOperations.has(realId)) {
+                  console.log(`⏭️ Skipping INSERT for ${realId} - operation in progress`)
+                  return
+                }
+
+                // Check if we already have this item (by real ID)
+                const state = get()
+                const existingItem = state.items.find(item => item.id === realId)
+                if (existingItem) {
+                  console.log(`⏭️ Skipping INSERT for ${realId} - already exists`)
+                  return
+                }
+
+                // Also check if this maps to a temp ID we created
+                let hasTempVersion = false
+                for (const [tempId, mappedRealId] of tempIdMap.entries()) {
+                  if (mappedRealId === realId) {
+                    hasTempVersion = true
+                    console.log(`⏭️ Skipping INSERT for ${realId} - temp version ${tempId} exists`)
+                    break
+                  }
+                }
+                if (hasTempVersion) return
+
+                // Safe to add - this is from another client or initial load
                 set(state => ({
                   items: [newItem, ...state.items],
                   lastSync: Date.now()
@@ -167,9 +203,29 @@ export function createRealtimeStore<T extends { id: string }>(
                 }
 
                 const updatedItem = transformFromDB(payload.new)
+                const realId = updatedItem.id
+
+                // Check if this is from our own operation
+                if (pendingOperations.has(realId)) {
+                  console.log(`⏭️ Skipping UPDATE for ${realId} - operation in progress`)
+                  // Still update after a delay to ensure sync
+                  setTimeout(() => {
+                    if (!pendingOperations.has(realId)) {
+                      set(state => ({
+                        items: state.items.map(item =>
+                          item.id === realId ? updatedItem : item
+                        ),
+                        lastSync: Date.now()
+                      }))
+                    }
+                  }, 100)
+                  return
+                }
+
+                // Apply update immediately
                 set(state => ({
                   items: state.items.map(item =>
-                    item.id === updatedItem.id ? updatedItem : item
+                    item.id === realId ? updatedItem : item
                   ),
                   lastSync: Date.now()
                 }))
@@ -185,8 +241,17 @@ export function createRealtimeStore<T extends { id: string }>(
                   return
                 }
 
+                const deletedId = payload.old.id
+
+                // Check if this is from our own operation
+                if (pendingOperations.has(deletedId)) {
+                  console.log(`⏭️ Skipping DELETE for ${deletedId} - operation in progress`)
+                  return
+                }
+
+                // Apply delete
                 set(state => ({
-                  items: state.items.filter(item => item.id !== payload.old.id),
+                  items: state.items.filter(item => item.id !== deletedId),
                   lastSync: Date.now()
                 }))
               } catch (error) {
@@ -295,7 +360,12 @@ export function createRealtimeStore<T extends { id: string }>(
           result = data
         }
 
-        console.log(`✅ Added new ${tableName} item:`, result?.id)
+        const realId = result.id
+        console.log(`✅ Added new ${tableName} item:`, realId)
+
+        // Track this operation to prevent duplicate from realtime
+        pendingOperations.add(realId)
+        tempIdMap.set(tempId, realId)
 
         // Replace optimistic item with real item
         const realItem = transformFromDB(result)
@@ -304,7 +374,12 @@ export function createRealtimeStore<T extends { id: string }>(
           lastSync: Date.now()
         }))
 
-        // Realtime will also update, but that's ok - deduplication happens naturally
+        // Clear pending after short delay (realtime event should arrive by then)
+        setTimeout(() => {
+          pendingOperations.delete(realId)
+          tempIdMap.delete(tempId)
+          console.log(`🧹 Cleared pending operation for ${realId}`)
+        }, 1000)
 
       } catch (error) {
         console.error(`❌ Failed to add ${tableName}:`, error)
@@ -319,8 +394,24 @@ export function createRealtimeStore<T extends { id: string }>(
     },
 
     updateItem: async (id, itemData) => {
+      // Store original item for rollback
+      const originalItem = get().items.find(item => item.id === id)
+
       try {
         set({ error: null })
+
+        // Track this operation to prevent realtime duplicate
+        pendingOperations.add(id)
+
+        // OPTIMISTIC UPDATE: Apply changes immediately to UI
+        set(state => ({
+          items: state.items.map(item =>
+            item.id === id ? { ...item, ...itemData, updated_at: new Date().toISOString() } : item
+          ),
+          lastSync: Date.now()
+        }))
+
+        console.log(`⚡ Optimistic update for ${tableName}:`, id)
 
         // Use existing service if provided, otherwise direct Supabase
         if (service && service.update) {
@@ -335,11 +426,27 @@ export function createRealtimeStore<T extends { id: string }>(
         }
 
         console.log(`✅ Updated ${tableName} item:`, id)
-        // Realtime will handle state update automatically
+
+        // Clear pending after short delay
+        setTimeout(() => {
+          pendingOperations.delete(id)
+          console.log(`🧹 Cleared pending update for ${id}`)
+        }, 500)
 
       } catch (error) {
         console.error(`❌ Failed to update ${tableName}:`, error)
-        set({ error: error instanceof Error ? error.message : `Σφάλμα ενημέρωσης ${tableName}` })
+
+        // ROLLBACK: Restore original item on error
+        if (originalItem) {
+          set(state => ({
+            items: state.items.map(item => item.id === id ? originalItem : item),
+            error: error instanceof Error ? error.message : `Σφάλμα ενημέρωσης ${tableName}`
+          }))
+        } else {
+          set({ error: error instanceof Error ? error.message : `Σφάλμα ενημέρωσης ${tableName}` })
+        }
+
+        pendingOperations.delete(id)
         throw error
       }
     },
@@ -350,6 +457,9 @@ export function createRealtimeStore<T extends { id: string }>(
 
       try {
         set({ error: null })
+
+        // Track this operation to prevent realtime duplicate
+        pendingOperations.add(id)
 
         // OPTIMISTIC UPDATE: Remove item immediately from UI
         set(state => ({
@@ -372,7 +482,12 @@ export function createRealtimeStore<T extends { id: string }>(
         }
 
         console.log(`✅ Deleted ${tableName} item:`, id)
-        // Realtime will also update, but that's ok - deduplication happens naturally
+
+        // Clear pending after short delay
+        setTimeout(() => {
+          pendingOperations.delete(id)
+          console.log(`🧹 Cleared pending delete for ${id}`)
+        }, 500)
 
       } catch (error) {
         console.error(`❌ Failed to delete ${tableName}:`, error)
@@ -386,6 +501,8 @@ export function createRealtimeStore<T extends { id: string }>(
         } else {
           set({ error: error instanceof Error ? error.message : `Σφάλμα διαγραφής ${tableName}` })
         }
+
+        pendingOperations.delete(id)
         throw error
       }
     },

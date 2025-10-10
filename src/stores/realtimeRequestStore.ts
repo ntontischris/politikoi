@@ -130,6 +130,10 @@ type RealtimeRequestStore = RealtimeRequestStoreState & RealtimeRequestStoreActi
 const useRealtimeRequestStore = create<RealtimeRequestStore>((set, get) => {
   const storeId = `request_store_${Date.now()}`
 
+  // Track pending operations to avoid race conditions
+  const pendingOperations = new Set<string>()
+  const tempIdMap = new Map<string, string>()
+
   return {
     // Initial state - EXACT same as old requestStore
     items: [],
@@ -197,6 +201,33 @@ const useRealtimeRequestStore = create<RealtimeRequestStore>((set, get) => {
               }
 
               const newItem = mapDBToFrontend(payload.new)
+              const realId = newItem.id
+
+              // Check if this is from our own operation (deduplication)
+              if (pendingOperations.has(realId)) {
+                console.log(`⏭️ Skipping INSERT for ${realId} - operation in progress`)
+                return
+              }
+
+              // Check if we already have this item
+              const state = get()
+              const existingItem = state.items.find(item => item.id === realId)
+              if (existingItem) {
+                console.log(`⏭️ Skipping INSERT for ${realId} - already exists`)
+                return
+              }
+
+              // Check if this maps to a temp ID we created
+              let hasTempVersion = false
+              for (const [tempId, mappedRealId] of tempIdMap.entries()) {
+                if (mappedRealId === realId) {
+                  hasTempVersion = true
+                  console.log(`⏭️ Skipping INSERT for ${realId} - temp version ${tempId} exists`)
+                  break
+                }
+              }
+              if (hasTempVersion) return
+
               set(state => ({
                 items: [newItem, ...state.items],
                 lastSync: Date.now()
@@ -214,6 +245,25 @@ const useRealtimeRequestStore = create<RealtimeRequestStore>((set, get) => {
               }
 
               const updatedItem = mapDBToFrontend(payload.new)
+              const realId = updatedItem.id
+
+              // Check if this is from our own operation
+              if (pendingOperations.has(realId)) {
+                console.log(`⏭️ Skipping UPDATE for ${realId} - operation in progress`)
+                // Still update after a delay to ensure sync
+                setTimeout(() => {
+                  if (!pendingOperations.has(realId)) {
+                    set(state => ({
+                      items: state.items.map(item =>
+                        item.id === realId ? updatedItem : item
+                      ),
+                      lastSync: Date.now()
+                    }))
+                  }
+                }, 100)
+                return
+              }
+
               set(state => ({
                 items: state.items.map(item =>
                   item.id === updatedItem.id ? updatedItem : item
@@ -232,8 +282,16 @@ const useRealtimeRequestStore = create<RealtimeRequestStore>((set, get) => {
                 return
               }
 
+              const deletedId = payload.old.id
+
+              // Check if this is from our own operation
+              if (pendingOperations.has(deletedId)) {
+                console.log(`⏭️ Skipping DELETE for ${deletedId} - operation in progress`)
+                return
+              }
+
               set(state => ({
-                items: state.items.filter(item => item.id !== payload.old.id),
+                items: state.items.filter(item => item.id !== deletedId),
                 lastSync: Date.now()
               }))
             } catch (error) {
@@ -329,8 +387,25 @@ const useRealtimeRequestStore = create<RealtimeRequestStore>((set, get) => {
 
     // CRUD operations - EXACT same interface as old requestStore
     addItem: async (itemData) => {
+      // Generate temporary ID for optimistic update
+      const tempId = `temp_${Date.now()}_${Math.random()}`
+      const optimisticItem: Request = {
+        ...itemData,
+        id: tempId,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      }
+
       try {
         set({ error: null })
+
+        // OPTIMISTIC UPDATE: Add item immediately to UI
+        set(state => ({
+          items: [optimisticItem, ...state.items],
+          lastSync: Date.now()
+        }))
+
+        console.log(`⚡ Optimistic add for request:`, tempId)
 
         const dbInput = mapFrontendToDB(itemData)
         const { data, error } = await supabase
@@ -341,19 +416,58 @@ const useRealtimeRequestStore = create<RealtimeRequestStore>((set, get) => {
 
         if (error) throw error
 
-        console.log('✅ Added new request:', data.id)
-        // Realtime will handle state update automatically
+        const realId = data.id
+        console.log('✅ Added new request:', realId)
+
+        // Track this operation to prevent duplicate from realtime
+        pendingOperations.add(realId)
+        tempIdMap.set(tempId, realId)
+
+        // Replace optimistic item with real item
+        const realItem = mapDBToFrontend(data)
+        set(state => ({
+          items: state.items.map(item => item.id === tempId ? realItem : item),
+          lastSync: Date.now()
+        }))
+
+        // Clear pending after short delay
+        setTimeout(() => {
+          pendingOperations.delete(realId)
+          tempIdMap.delete(tempId)
+          console.log(`🧹 Cleared pending operation for ${realId}`)
+        }, 1000)
 
       } catch (error) {
         console.error('❌ Failed to add request:', error)
-        set({ error: error instanceof Error ? error.message : 'Σφάλμα προσθήκης αιτήματος' })
+
+        // ROLLBACK: Remove optimistic item on error
+        set(state => ({
+          items: state.items.filter(item => item.id !== tempId),
+          error: error instanceof Error ? error.message : 'Σφάλμα προσθήκης αιτήματος'
+        }))
         throw error
       }
     },
 
     updateItem: async (id, itemData) => {
+      // Store original item for rollback
+      const originalItem = get().items.find(item => item.id === id)
+
       try {
         set({ error: null })
+
+        // Track this operation to prevent realtime duplicate
+        pendingOperations.add(id)
+
+        // OPTIMISTIC UPDATE: Apply changes immediately to UI
+        set(state => ({
+          items: state.items.map(item =>
+            item.id === id ? { ...item, ...itemData, updated_at: new Date().toISOString() } : item
+          ),
+          lastSync: Date.now()
+        }))
+
+        console.log(`⚡ Optimistic update for request:`, id)
 
         const dbInput = mapFrontendToDB(itemData)
         const { data, error } = await supabase
@@ -366,18 +480,48 @@ const useRealtimeRequestStore = create<RealtimeRequestStore>((set, get) => {
         if (error) throw error
 
         console.log('✅ Updated request:', id)
-        // Realtime will handle state update automatically
+
+        // Clear pending after short delay
+        setTimeout(() => {
+          pendingOperations.delete(id)
+          console.log(`🧹 Cleared pending update for ${id}`)
+        }, 500)
 
       } catch (error) {
         console.error('❌ Failed to update request:', error)
-        set({ error: error instanceof Error ? error.message : 'Σφάλμα ενημέρωσης αιτήματος' })
+
+        // ROLLBACK: Restore original item on error
+        if (originalItem) {
+          set(state => ({
+            items: state.items.map(item => item.id === id ? originalItem : item),
+            error: error instanceof Error ? error.message : 'Σφάλμα ενημέρωσης αιτήματος'
+          }))
+        } else {
+          set({ error: error instanceof Error ? error.message : 'Σφάλμα ενημέρωσης αιτήματος' })
+        }
+
+        pendingOperations.delete(id)
         throw error
       }
     },
 
     deleteItem: async (id) => {
+      // Store item for potential rollback
+      const itemToDelete = get().items.find(item => item.id === id)
+
       try {
         set({ error: null })
+
+        // Track this operation to prevent realtime duplicate
+        pendingOperations.add(id)
+
+        // OPTIMISTIC UPDATE: Remove item immediately from UI
+        set(state => ({
+          items: state.items.filter(item => item.id !== id),
+          lastSync: Date.now()
+        }))
+
+        console.log(`⚡ Optimistic delete for request:`, id)
 
         const { error } = await supabase
           .from('requests')
@@ -387,11 +531,27 @@ const useRealtimeRequestStore = create<RealtimeRequestStore>((set, get) => {
         if (error) throw error
 
         console.log('✅ Deleted request:', id)
-        // Realtime will handle state update automatically
+
+        // Clear pending after short delay
+        setTimeout(() => {
+          pendingOperations.delete(id)
+          console.log(`🧹 Cleared pending delete for ${id}`)
+        }, 500)
 
       } catch (error) {
         console.error('❌ Failed to delete request:', error)
-        set({ error: error instanceof Error ? error.message : 'Σφάλμα διαγραφής αιτήματος' })
+
+        // ROLLBACK: Restore item on error
+        if (itemToDelete) {
+          set(state => ({
+            items: [itemToDelete, ...state.items],
+            error: error instanceof Error ? error.message : 'Σφάλμα διαγραφής αιτήματος'
+          }))
+        } else {
+          set({ error: error instanceof Error ? error.message : 'Σφάλμα διαγραφής αιτήματος' })
+        }
+
+        pendingOperations.delete(id)
         throw error
       }
     },
