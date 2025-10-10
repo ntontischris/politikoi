@@ -145,14 +145,22 @@ const useRealtimeRequestStore = create<RealtimeRequestStore>((set, get) => {
     },
 
     // Initialize realtime connection
-    initialize: async () => {
-      if (get().isInitialized) {
-        console.log('🔄 RealtimeRequestStore: Already initialized, skipping...')
+    initialize: async (forceReinit = false) => {
+      const state = get()
+
+      // Skip if already initialized (unless forcing reinit after connection loss)
+      if (state.isInitialized && !forceReinit) {
+        console.log('✅ RealtimeRequestStore: Already initialized, skipping...')
+        return
+      }
+
+      if (state.isLoading) {
+        console.log('⏳ RealtimeRequestStore: Already initializing, waiting...')
         return
       }
 
       set({ isLoading: true, error: null })
-      console.log('🚀 RealtimeRequestStore: Initializing...')
+      console.log(`🚀 RealtimeRequestStore: ${forceReinit ? 'Re-initializing' : 'Initializing'}...`)
 
       try {
         // 1. Load initial data from database
@@ -240,6 +248,39 @@ const useRealtimeRequestStore = create<RealtimeRequestStore>((set, get) => {
               isConnected,
               error: error ? `Realtime error: ${error.message}` : get().error
             })
+
+            // If disconnected unexpectedly, reset initialization and schedule reconnect
+            if (!isConnected && (status === 'CLOSED' || status === 'CHANNEL_ERROR')) {
+              console.log('⚠️ Requests: Connection lost, resetting initialization state')
+              set({ isInitialized: false })
+
+              // Schedule automatic reconnection with exponential backoff
+              let retryCount = 0
+              const maxRetries = 3
+              const attemptReconnect = () => {
+                if (retryCount >= maxRetries) {
+                  console.log('❌ Requests: Max reconnection attempts reached')
+                  return
+                }
+
+                const delay = Math.min(1000 * Math.pow(2, retryCount), 10000)
+                retryCount++
+
+                console.log(`🔄 Requests: Reconnection attempt ${retryCount}/${maxRetries} in ${delay}ms`)
+                setTimeout(async () => {
+                  if (!get().isConnected && !get().isInitialized) {
+                    console.log('🔄 Requests: Attempting reconnection...')
+                    await get().initialize(true)
+
+                    if (!get().isConnected) {
+                      attemptReconnect()
+                    }
+                  }
+                }, delay)
+              }
+
+              attemptReconnect()
+            }
           }
         })
 
@@ -247,6 +288,7 @@ const useRealtimeRequestStore = create<RealtimeRequestStore>((set, get) => {
         console.error('❌ Failed to initialize requests store:', error)
         set({
           isLoading: false,
+          isInitialized: false,
           error: error instanceof Error ? error.message : 'Σφάλμα σύνδεσης αιτημάτων'
         })
       }

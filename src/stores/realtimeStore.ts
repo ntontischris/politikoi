@@ -98,14 +98,22 @@ export function createRealtimeStore<T extends { id: string }>(
       },
 
       // Initialize realtime connection using RealtimeManager
-      initialize: async () => {
-        if (get().isInitialized) {
-          console.log(`🔄 ${tableName} store: Already initialized, skipping...`)
+      initialize: async (forceReinit = false) => {
+        const state = get()
+
+        // Skip if already initialized (unless forcing reinit after connection loss)
+        if (state.isInitialized && !forceReinit) {
+          console.log(`✅ ${tableName} store: Already initialized (${state.items.length} items)`)
+          return
+        }
+
+        if (state.isLoading) {
+          console.log(`⏳ ${tableName} store: Already initializing, waiting...`)
           return
         }
 
         set({ isLoading: true, error: null })
-        console.log(`🚀 ${tableName} store: Initializing...`)
+        console.log(`🚀 ${tableName} store: ${forceReinit ? 'Re-initializing' : 'Initializing'}...`)
 
         try {
           // 1. Load initial data from database
@@ -193,6 +201,40 @@ export function createRealtimeStore<T extends { id: string }>(
                 isConnected,
                 error: error ? `Realtime error: ${error.message}` : get().error
               })
+
+              // If disconnected unexpectedly, reset initialization and schedule reconnect
+              if (!isConnected && (status === 'CLOSED' || status === 'CHANNEL_ERROR')) {
+                console.log(`⚠️ ${tableName}: Connection lost, resetting initialization state`)
+                set({ isInitialized: false })
+
+                // Schedule automatic reconnection with exponential backoff
+                let retryCount = 0
+                const maxRetries = 3
+                const attemptReconnect = () => {
+                  if (retryCount >= maxRetries) {
+                    console.log(`❌ ${tableName}: Max reconnection attempts reached`)
+                    return
+                  }
+
+                  const delay = Math.min(1000 * Math.pow(2, retryCount), 10000) // 1s, 2s, 4s, max 10s
+                  retryCount++
+
+                  console.log(`🔄 ${tableName}: Reconnection attempt ${retryCount}/${maxRetries} in ${delay}ms`)
+                  setTimeout(async () => {
+                    if (!get().isConnected && !get().isInitialized) {
+                      console.log(`🔄 ${tableName}: Attempting reconnection...`)
+                      await get().initialize(true) // Force reinit
+
+                      // If still not connected, try again
+                      if (!get().isConnected) {
+                        attemptReconnect()
+                      }
+                    }
+                  }, delay)
+                }
+
+                attemptReconnect()
+              }
             }
           })
 
@@ -200,6 +242,7 @@ export function createRealtimeStore<T extends { id: string }>(
           console.error(`❌ Failed to initialize ${tableName} store:`, error)
           set({
             isLoading: false,
+            isInitialized: false, // Reset on error
             error: error instanceof Error ? error.message : `Σφάλμα σύνδεσης ${tableName}`
           })
         }
@@ -217,8 +260,25 @@ export function createRealtimeStore<T extends { id: string }>(
 
     // CRUD operations - EXACT same interface as baseStore
     addItem: async (itemData) => {
+      // Generate temporary ID for optimistic update
+      const tempId = `temp_${Date.now()}_${Math.random()}`
+      const optimisticItem = {
+        ...itemData,
+        id: tempId,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      } as T
+
       try {
         set({ error: null })
+
+        // OPTIMISTIC UPDATE: Add item immediately to UI
+        set(state => ({
+          items: [optimisticItem, ...state.items],
+          lastSync: Date.now()
+        }))
+
+        console.log(`⚡ Optimistic add for ${tableName}:`, tempId)
 
         // Use existing service if provided, otherwise direct Supabase
         let result
@@ -236,11 +296,24 @@ export function createRealtimeStore<T extends { id: string }>(
         }
 
         console.log(`✅ Added new ${tableName} item:`, result?.id)
-        // Realtime will handle state update automatically
+
+        // Replace optimistic item with real item
+        const realItem = transformFromDB(result)
+        set(state => ({
+          items: state.items.map(item => item.id === tempId ? realItem : item),
+          lastSync: Date.now()
+        }))
+
+        // Realtime will also update, but that's ok - deduplication happens naturally
 
       } catch (error) {
         console.error(`❌ Failed to add ${tableName}:`, error)
-        set({ error: error instanceof Error ? error.message : `Σφάλμα προσθήκης ${tableName}` })
+
+        // ROLLBACK: Remove optimistic item on error
+        set(state => ({
+          items: state.items.filter(item => item.id !== tempId),
+          error: error instanceof Error ? error.message : `Σφάλμα προσθήκης ${tableName}`
+        }))
         throw error
       }
     },
@@ -272,8 +345,19 @@ export function createRealtimeStore<T extends { id: string }>(
     },
 
     deleteItem: async (id) => {
+      // Store item for potential rollback
+      const itemToDelete = get().items.find(item => item.id === id)
+
       try {
         set({ error: null })
+
+        // OPTIMISTIC UPDATE: Remove item immediately from UI
+        set(state => ({
+          items: state.items.filter(item => item.id !== id),
+          lastSync: Date.now()
+        }))
+
+        console.log(`⚡ Optimistic delete for ${tableName}:`, id)
 
         // Use existing service if provided, otherwise direct Supabase
         if (service && service.delete) {
@@ -288,11 +372,20 @@ export function createRealtimeStore<T extends { id: string }>(
         }
 
         console.log(`✅ Deleted ${tableName} item:`, id)
-        // Realtime will handle state update automatically
+        // Realtime will also update, but that's ok - deduplication happens naturally
 
       } catch (error) {
         console.error(`❌ Failed to delete ${tableName}:`, error)
-        set({ error: error instanceof Error ? error.message : `Σφάλμα διαγραφής ${tableName}` })
+
+        // ROLLBACK: Restore item on error
+        if (itemToDelete) {
+          set(state => ({
+            items: [itemToDelete, ...state.items],
+            error: error instanceof Error ? error.message : `Σφάλμα διαγραφής ${tableName}`
+          }))
+        } else {
+          set({ error: error instanceof Error ? error.message : `Σφάλμα διαγραφής ${tableName}` })
+        }
         throw error
       }
     },
