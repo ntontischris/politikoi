@@ -30,7 +30,6 @@ export function Citizens() {
 
   // Enhanced state management
   const [searchTerm, setSearchTerm] = useState('')
-  const [statusFilter, setStatusFilter] = useState<'' | 'active' | 'inactive'>('')
   const [militaryFilter, setMilitaryFilter] = useState<'' | 'military' | 'civilian'>('')
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false)
   const [cityFilter, setCityFilter] = useState('')
@@ -41,7 +40,7 @@ export function Citizens() {
   const [selectedCitizen, setSelectedCitizen] = useState<Citizen | null>(null)
   const [citizenToEdit, setCitizenToEdit] = useState<Citizen | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
-  const [stats, setStats] = useState({ total: 0, active: 0, inactive: 0, recent: 0 })
+  const [stats, setStats] = useState({ total: 0, recent: 0 })
   const [showRequestForm, setShowRequestForm] = useState(false)
   const [requestFormCitizenId, setRequestFormCitizenId] = useState<string | null>(null)
 
@@ -69,8 +68,6 @@ export function Citizens() {
 
     setStats({
       total: citizens.length,
-      active: citizens.filter(c => c.status === 'ΟΛΟΚΛΗΡΩΜΕΝΑ').length,
-      inactive: citizens.filter(c => c.status === 'ΜΗ ΟΛΟΚΛΗΡΩΜΕΝΑ').length,
       recent: citizens.filter(c => new Date(c.created_at) >= thirtyDaysAgo).length
     })
   }, [citizens])
@@ -95,8 +92,6 @@ export function Citizens() {
 
       setStats({
         total: filtered.length,
-        active: filtered.filter(c => c.status === 'ΟΛΟΚΛΗΡΩΜΕΝΑ').length,
-        inactive: filtered.filter(c => c.status === 'ΜΗ ΟΛΟΚΛΗΡΩΜΕΝΑ').length,
         recent: filtered.filter(c => new Date(c.created_at) >= thirtyDaysAgo).length
       })
     }
@@ -119,8 +114,6 @@ export function Citizens() {
     }
 
     // Status filter
-    if (statusFilter === 'active' && citizen.status !== 'ΟΛΟΚΛΗΡΩΜΕΝΑ') return false
-    if (statusFilter === 'inactive' && citizen.status === 'ΟΛΟΚΛΗΡΩΜΕΝΑ') return false
 
     // Military filter
     if (militaryFilter === 'military' && !citizen.isMilitary) return false
@@ -135,10 +128,52 @@ export function Citizens() {
 
   const handleAddCitizen = async (formData: CitizenFormData) => {
     try {
+      // Create the citizen first
       await addCitizen({
         ...formData,
         status: 'ΕΚΚΡΕΜΗ' as const
       })
+
+      // If there's a request text in the form, automatically create a Request record
+      if (formData.request && formData.request.trim()) {
+        // Wait a bit longer for the optimistic update to be replaced with real data
+        await new Promise(resolve => setTimeout(resolve, 300))
+
+        // Get the newly created citizen from the store state (not from props/hook)
+        const { items: currentCitizens } = useRealtimeCitizenStore.getState()
+        const newCitizen = currentCitizens.find(c =>
+          c.name === formData.name &&
+          c.surname === formData.surname &&
+          !c.id.startsWith('temp_') // Make sure we have the real ID, not temp
+        )
+
+        if (newCitizen) {
+          try {
+            // Import the request store dynamically to avoid circular dependencies
+            const { useRequestStore } = await import('../stores/realtimeRequestStore')
+            const { addItem: addRequest } = useRequestStore.getState()
+
+            await addRequest({
+              citizenId: newCitizen.id,
+              requestType: formData.requestCategory || 'Γενικά Αιτήματα',
+              description: formData.request,
+              status: 'ΕΚΚΡΕΜΕΙ',
+              sendDate: formData.addedDate || new Date().toISOString().split('T')[0]
+            })
+
+            console.log('✅ Automatically created Request record for citizen request field')
+          } catch (requestError) {
+            console.error('Error creating automatic request:', requestError)
+            // Don't fail the whole operation if request creation fails
+          }
+        } else {
+          console.warn('Could not find newly created citizen to link request', {
+            searchedFor: `${formData.name} ${formData.surname}`,
+            availableCitizens: currentCitizens.slice(0, 3).map(c => `${c.name} ${c.surname} (${c.id})`)
+          })
+        }
+      }
+
       setShowAddModal(false)
       // Stats will be updated automatically via useEffect
     } catch (error) {
@@ -278,6 +313,16 @@ export function Citizens() {
     }
   }, [error, setError])
 
+  // MEMORY LEAK FIX: Cleanup realtime connection on unmount
+  useEffect(() => {
+    return () => {
+      // Get disconnect function from the store
+      const { disconnect } = useRealtimeCitizenStore.getState()
+      disconnect()
+      console.log('🧹 Citizens page: Cleaned up realtime connection on unmount')
+    }
+  }, [])
+
   return (
     <div className="container-responsive py-4 sm:py-6 lg:py-8 safe-y">
       {/* Enhanced Error Alert */}
@@ -395,7 +440,7 @@ export function Citizens() {
               gradientFrom: 'from-yellow-500',
               gradientTo: 'to-orange-500'
             }
-          ].map((stat, index) => (
+          ].filter(stat => stat.value !== undefined).map((stat, index) => (
             <div
               key={index}
               className={`group relative overflow-hidden bg-slate-800/70 backdrop-blur-sm border ${stat.borderColor} rounded-2xl p-4 sm:p-5 lg:p-6 hover:bg-slate-700/80 transition-all duration-300 hover:shadow-xl hover:shadow-slate-900/50 hover:scale-[1.02]`}
@@ -439,15 +484,6 @@ export function Citizens() {
               />
             </div>
             <div className="flex gap-3 sm:gap-4">
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value as '' | 'active' | 'inactive')}
-                className="flex-1 sm:flex-none bg-slate-700 border border-slate-600 text-white rounded-lg px-3 sm:px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              >
-                <option value="">Όλες</option>
-                <option value="active">Ενεργοί</option>
-                <option value="inactive">Ανενεργοί</option>
-              </select>
               <select
                 value={militaryFilter}
                 onChange={(e) => setMilitaryFilter(e.target.value as '' | 'military' | 'civilian')}
@@ -505,7 +541,6 @@ export function Citizens() {
                   onClick={() => {
                     setCityFilter('')
                     setMunicipalityFilter('')
-                    setStatusFilter('')
                     setMilitaryFilter('')
                     setSearchTerm('')
                   }}
@@ -532,9 +567,10 @@ export function Citizens() {
         </h2>
       </div>
 
-      {/* Desktop Table View */}
-      <div className="mobile-table-hidden bg-slate-800 border-x border-b border-slate-700 rounded-b-xl">
-        <table className="w-full table-fixed">
+      {/* Desktop List View (Table) */}
+      {viewMode === 'list' && (
+        <div className="mobile-table-hidden bg-slate-800 border-x border-b border-slate-700 rounded-b-xl">
+          <table className="w-full table-fixed">
           <colgroup>
             <col className="w-1/5" />
             <col className="w-1/6" />
@@ -558,7 +594,7 @@ export function Citizens() {
               <tr>
                 <td colSpan={6} className="text-center py-12 text-gray-400">
                   <Users className="h-12 w-12 mx-auto mb-4 text-gray-500" />
-                  {searchTerm || statusFilter ? 'Δεν βρέθηκαν πολίτες με αυτά τα κριτήρια' : 'Δεν υπάρχουν εγγεγραμμένοι πολίτες'}
+                  {searchTerm ? 'Δεν βρέθηκαν πολίτες με αυτά τα κριτήρια' : 'Δεν υπάρχουν εγγεγραμμένοι πολίτες'}
                 </td>
               </tr>
             ) : (
@@ -701,6 +737,114 @@ export function Citizens() {
           </tbody>
         </table>
       </div>
+      )}
+
+      {/* Desktop Grid View */}
+      {viewMode === 'grid' && (
+        <div className="mobile-table-hidden bg-slate-800 border-x border-b border-slate-700 rounded-b-xl p-4">
+          {filteredCitizens.length === 0 ? (
+            <div className="text-center py-12 text-gray-400">
+              <Users className="h-12 w-12 mx-auto mb-4 text-gray-500" />
+              <p>
+                {searchTerm ? 'Δεν βρέθηκαν πολίτες με αυτά τα κριτήρια' : 'Δεν υπάρχουν εγγεγραμμένοι πολίτες'}
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              {filteredCitizens.map((citizen) => (
+                <div key={citizen.id} className="bg-slate-700/50 rounded-lg p-4 border border-slate-600 hover:border-blue-500/50 transition-all hover:shadow-lg">
+                  {/* Header */}
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <h3 className="text-white font-semibold text-sm truncate">
+                          {citizen.name} {citizen.surname}
+                        </h3>
+                        {citizen.isMilitary && (
+                          <Shield className="h-3 w-3 text-green-400 flex-shrink-0" />
+                        )}
+                      </div>
+                      <div className="text-gray-400 text-xs truncate">
+                        {citizen.municipality && `${citizen.municipality} • `}
+                        {citizen.region}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Status Badge */}
+                  <div className="mb-3">
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                      citizen.status === 'ΟΛΟΚΛΗΡΩΜΕΝΑ'
+                        ? 'bg-green-500/20 text-green-400 border border-green-500/30'
+                        : citizen.status === 'ΕΚΚΡΕΜΗ'
+                        ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30'
+                        : 'bg-red-500/20 text-red-400 border border-red-500/30'
+                    }`}>
+                      {citizen.status || 'ΕΚΚΡΕΜΗ'}
+                    </span>
+                  </div>
+
+                  {/* Contact Info */}
+                  <div className="space-y-1 mb-3 text-xs">
+                    {citizen.phone && (
+                      <div className="flex items-center text-gray-300 truncate">
+                        <Phone className="h-3 w-3 mr-2 flex-shrink-0 text-gray-400" />
+                        {citizen.phone}
+                      </div>
+                    )}
+                    {citizen.email && (
+                      <div className="flex items-center text-gray-300 truncate">
+                        <Mail className="h-3 w-3 mr-2 flex-shrink-0 text-gray-400" />
+                        {citizen.email}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Request Info */}
+                  {citizen.request && (
+                    <div className="mb-3 p-2 bg-slate-600/50 rounded text-xs">
+                      <div className="text-gray-300 line-clamp-2">
+                        {citizen.request}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Actions */}
+                  <div className="flex items-center justify-between gap-2 pt-3 border-t border-slate-600">
+                    <button
+                      onClick={() => handleViewCitizen(citizen)}
+                      className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-2 py-1.5 rounded text-xs font-medium transition-colors flex items-center justify-center"
+                    >
+                      <Eye className="h-3 w-3 mr-1" />
+                      Προβολή
+                    </button>
+                    <button
+                      onClick={() => {
+                        setCitizenToEdit(citizen)
+                        setShowEditModal(true)
+                      }}
+                      className="flex-1 bg-green-600 hover:bg-green-700 text-white px-2 py-1.5 rounded text-xs font-medium transition-colors flex items-center justify-center"
+                    >
+                      <Edit className="h-3 w-3 mr-1" />
+                      Επεξ.
+                    </button>
+                    <button
+                      onClick={() => handleDeleteCitizen(citizen.id)}
+                      className={`px-2 py-1.5 rounded text-xs font-medium transition-colors flex items-center justify-center ${
+                        deleteConfirm === citizen.id
+                          ? 'bg-red-600 hover:bg-red-700 text-white'
+                          : 'bg-red-500/20 hover:bg-red-500/30 text-red-400'
+                      }`}
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Mobile Card View */}
       <div className="mobile-card-only space-y-4 bg-slate-800 border-x border-b border-slate-700 rounded-b-xl p-4">
@@ -708,7 +852,7 @@ export function Citizens() {
           <div className="text-center py-12 text-gray-400">
             <Users className="h-12 w-12 mx-auto mb-4 text-gray-500" />
             <p className="text-sm">
-              {searchTerm || statusFilter ? 'Δεν βρέθηκαν πολίτες με αυτά τα κριτήρια' : 'Δεν υπάρχουν εγγεγραμμένοι πολίτες'}
+              {searchTerm ? 'Δεν βρέθηκαν πολίτες με αυτά τα κριτήρια' : 'Δεν υπάρχουν εγγεγραμμένοι πολίτες'}
             </p>
           </div>
         ) : (

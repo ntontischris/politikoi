@@ -89,8 +89,34 @@ export const sanitizeAddress = (address: string): string => {
 export const sanitizeFormData = <T extends Record<string, any>>(formData: T): T => {
   const sanitized = { ...formData }
 
+  // Fields that should NOT be sanitized (IDs, foreign keys, etc.)
+  const skipSanitization = [
+    'id',
+    'citizenId',
+    'militaryId',
+    'militaryPersonnelId',
+    'citizen_id',
+    'military_id',
+    'military_personnel_id',
+    'userId',
+    'user_id',
+    'requestId',
+    'request_id',
+    'reminderId',
+    'reminder_id',
+    'created_by',
+    'updated_by',
+    'createdBy',
+    'updatedBy'
+  ]
+
   for (const [key, value] of Object.entries(sanitized)) {
     if (typeof value === 'string') {
+      // Skip sanitization for ID fields and foreign keys
+      if (skipSanitization.includes(key)) {
+        continue
+      }
+
       switch (key) {
         case 'email':
           sanitized[key] = sanitizeEmail(value)
